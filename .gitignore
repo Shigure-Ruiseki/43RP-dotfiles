@@ -13,7 +13,3 @@
 
 # Backups
 *.bak
-
-# Hypr SDDM personal assets
-/usr/share/sddm/themes/hyprsddm/assets/avatar.jpg
-/usr/share/sddm/themes/hyprsddm/assets/background.jpg

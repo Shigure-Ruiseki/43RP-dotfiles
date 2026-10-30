@@ -157,7 +157,7 @@ bind(mainMod .. " + " .. clipboard_key, hl.dsp.exec_cmd("pgrep -x rofi >/dev/nul
 
 bind(shot_area_key, hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/screenshot-area.sh"))
 
-bind(mainMod .. " + " .. layout_key, hl.dsp.exec_cmd("hyprctl switchxkblayout current next"))
+bind(mainMod .. " + " .. layout_key, hl.dsp.exec_cmd("fcitx5-remote -t"))
 
 bind(mainMod .. " + " .. float_key, function()
     hl.dispatch(hl.dsp.window.float({ action = "toggle" }))

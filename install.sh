@@ -345,68 +345,98 @@ fi
 success "Pictures and Wallpapers directories ready."
 
 # --------------------------------------------------
-# SDDM + Hypr SDDM (Hyprlock-inspired login screen)
+# SDDM + bundled Hypr SDDM theme
 # --------------------------------------------------
 
 info "Setting up SDDM + Hypr SDDM..."
 
-SDDM_THEME_DIR="/usr/share/sddm/themes/hyprsddm"
-SDDM_THEME_REPO="https://github.com/ADIOR-enigma/hypr-sddm.git"
-SDDM_CONF="/etc/sddm.conf.d/43pr-theme.conf"
+SDDM_SRC="$REPO_DIR/usr/share/sddm/themes/hyprsddm"
+SDDM_DEST="/usr/share/sddm/themes/hyprsddm"
+SDDM_CONF="/etc/sddm.conf.d/43pr.conf"
 
-# VirtualKeyboard is required by this theme's Main.qml.
-if sudo pacman -S --needed --noconfirm \
-        sddm qt6-declarative qt6-svg qt6-virtualkeyboard; then
-    if [[ -f "$SDDM_THEME_DIR/Main.qml" ]]; then
-        info "Hypr SDDM is already installed; preserving local theme modifications."
+# Use the customized theme committed to this repository; do not re-clone
+# upstream, as that would discard 43PR-specific QML and colors.
+if [[ ! -f "$SDDM_SRC/Main.qml" ]]; then
+    warning "Bundled theme missing: $SDDM_SRC/Main.qml; skipping SDDM setup."
+elif ! sudo pacman -S --needed --noconfirm \
+        sddm qt6-declarative qt6-svg qt6-virtualkeyboard acl; then
+    warning "SDDM dependencies failed to install; skipping SDDM setup."
+else
+    if [[ -f "$SDDM_DEST/Main.qml" ]]; then
+        info "Hypr SDDM already installed; preserving live theme changes."
     else
-        SDDM_BUILD_DIR="$(mktemp -d)"
-        if git clone --depth 1 "$SDDM_THEME_REPO" "$SDDM_BUILD_DIR/hypr-sddm"; then
-            sudo mkdir -p "$SDDM_THEME_DIR"
-            if sudo cp -a "$SDDM_BUILD_DIR/hypr-sddm/." "$SDDM_THEME_DIR/"; then
-                success "Hypr SDDM theme installed."
-            else
-                warning "Could not copy Hypr SDDM theme."
-            fi
+        if sudo mkdir -p "$SDDM_DEST" && sudo cp -a "$SDDM_SRC/." "$SDDM_DEST/"; then
+            sudo chown -R root:root "$SDDM_DEST"
+            sudo chmod -R u=rwX,go=rX "$SDDM_DEST"
+            success "Installed bundled Hypr SDDM theme."
         else
-            warning "Could not clone Hypr SDDM. Check your network connection."
+            warning "Could not copy bundled Hypr SDDM theme."
         fi
-        rm -rf "$SDDM_BUILD_DIR"
     fi
 
-    if [[ -f "$SDDM_THEME_DIR/Main.qml" ]]; then
+    if [[ -f "$SDDM_DEST/Main.qml" ]]; then
+        # A new copy should be system-owned. Keep existing installations intact.
+        # The login manager must be able to read theme files.
         sudo mkdir -p /etc/sddm.conf.d
-        # Dedicated configuration file avoids overwriting existing SDDM settings.
         printf '[Theme]\nCurrent=hyprsddm\n' | sudo tee "$SDDM_CONF" >/dev/null
-        success "SDDM configured to use Hypr SDDM."
+        success "Configured SDDM theme: hyprsddm."
 
-        # Only enable the display manager if no other one owns the system alias.
+        # Allow the 43PR user session to update only the two runtime files.
+        # This deliberately does not grant write access to Main.qml or the theme folder.
+        if command -v setfacl >/dev/null 2>&1; then
+            for file in "$SDDM_DEST/theme.conf.user" "$SDDM_DEST/assets/background.jpg"; do
+                if [[ -f "$file" ]]; then
+                    sudo setfacl -m "u:$(id -un):rw" "$file" \
+                        || warning "Could not allow wallpaper/color sync: $file"
+                fi
+            done
+        else
+            warning "setfacl unavailable; live SDDM wallpaper/color sync may fail."
+        fi
+
+        # The 43PR wallpaper picker calls this script from commands.sh.
+        # Create it for fresh installations, without overwriting local changes.
+        SYNC_SCRIPT="$HOME/.local/bin/sync-sddm-wallpaper"
+        if [[ ! -e "$SYNC_SCRIPT" ]]; then
+            mkdir -p "$(dirname "$SYNC_SCRIPT")"
+            cat > "$SYNC_SCRIPT" <<'SYNC_WALLPAPER_EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+img="${1:?Missing wallpaper path}"
+target="/usr/share/sddm/themes/hyprsddm/assets/background.jpg"
+[[ -f "$img" ]] || { echo "Wallpaper not found: $img" >&2; exit 1; }
+[[ -f "$target" && -w "$target" ]] || { echo "SDDM wallpaper not writable: $target" >&2; exit 1; }
+tmp="$(mktemp --suffix=.jpg)"
+trap 'rm -f "$tmp"' EXIT
+ffmpeg -nostdin -hide_banner -loglevel error -y \
+    -i "$img" -frames:v 1 -update 1 "$tmp"
+[[ -s "$tmp" ]] || exit 1
+cat "$tmp" > "$target"
+echo "SDDM wallpaper synced: $img"
+SYNC_WALLPAPER_EOF
+            chmod +x "$SYNC_SCRIPT"
+            success "Installed SDDM wallpaper sync helper."
+        fi
+
+        # Select SDDM only if no other display manager is configured.
         DM_ALIAS="/etc/systemd/system/display-manager.service"
         if [[ -L "$DM_ALIAS" ]]; then
-            DM_TARGET="$(readlink -f "$DM_ALIAS")"
-            if [[ "$DM_TARGET" == */sddm.service ]]; then
-                info "SDDM is already selected as the display manager."
+            if [[ "$(readlink -f "$DM_ALIAS")" == */sddm.service ]]; then
+                info "SDDM already selected as display manager."
             else
-                warning "Another display manager is configured ($DM_TARGET)."
-                warning "SDDM was installed but not enabled; switch managers manually after testing."
+                warning "Another display manager is selected; not replacing it."
             fi
         elif [[ -e "$DM_ALIAS" ]]; then
-            warning "display-manager.service is present but is not a symlink; not changing it."
+            warning "display-manager.service is not a symlink; not changing it."
         elif command -v systemctl >/dev/null 2>&1; then
-            if sudo systemctl enable sddm.service; then
-                success "SDDM enabled for the next boot (not started now)."
-            else
-                warning "Could not enable SDDM; check systemctl status sddm.service."
-            fi
+            sudo systemctl enable sddm.service \
+                && success "SDDM enabled for the next boot." \
+                || warning "Could not enable SDDM."
         fi
-
-        info "Preview after login: sddm-greeter-qt6 --test-mode --theme $SDDM_THEME_DIR"
-        info "Wallpaper synchronization and theme palette syncing require separate 43PR hooks."
+        info "Preview: sddm-greeter-qt6 --test-mode --theme $SDDM_DEST"
     else
-        warning "Hypr SDDM files are missing; skipped configuration and enabling."
+        warning "Theme Main.qml is missing; SDDM was not enabled."
     fi
-else
-    warning "SDDM / Qt dependencies could not be installed; skipping Hypr SDDM."
 fi
 
 # --------------------------------------------------

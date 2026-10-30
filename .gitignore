@@ -1,3 +1,4 @@
+# Generated theme files
 .config/gtk-3.0/colors.css
 .config/gtk-4.0/colors.css
 .config/hypr/hyprlock-colors.conf
@@ -6,3 +7,13 @@
 .config/btop/themes/43pr.theme
 .config/cava/themes/43pr
 .config/quickshell/state/
+
+# IDE
+.idea/
+
+# Backups
+*.bak
+
+# Hypr SDDM personal assets
+/usr/share/sddm/themes/hyprsddm/assets/avatar.jpg
+/usr/share/sddm/themes/hyprsddm/assets/background.jpg

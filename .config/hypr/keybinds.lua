@@ -6,7 +6,7 @@
 -- terminal/browser — those globals are the program names from hyprland.lua).
 local terminal_key      = "T"
 local launcher_key      = "D"
-local qa_key         = "S"
+local qa_key            = "S"
 local files_key         = "E"
 local browser_key       = "B"
 local close_key         = "Q"
@@ -24,9 +24,9 @@ local bar_key           = "SHIFT + W"
 local clipboard_key     = "V"
 local layout_key        = "X"
 local float_key         = "Space"
-local record_key        = "R"
+local record_key        = "SHIFT + R"
 local shot_key          = "Delete"
-local shot_area_key     = "SHIFT + Delete"
+local shot_area_key     = "SHIFT + S"
 
 do
     local f = os.getenv("HOME") .. "/.config/quickshell/state/binds.lua"
@@ -58,7 +58,6 @@ do
             if kb_layout        then layout_key        = kb_layout end
             if kb_float         then float_key         = kb_float end
             if kb_record        then record_key        = kb_record end
-            if kb_shot          then shot_key          = kb_shot end
             if kb_shot_area     then shot_area_key     = kb_shot_area end
         end
     end

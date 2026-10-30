@@ -113,3 +113,7 @@ require("hyprland-gui")
 
 -- Let applications follow the same XDG choice as Super+B.
 hl.env("BROWSER", "python3 " .. os.getenv("HOME") .. "/.config/hypr/scripts/default-browser.py")
+
+-- gtk-live-css: open GTK apps re-apply ~/.config/gtk-{3,4}.0/gtk.css as soon
+-- as it changes. See https://github.com/benredrew/gtk-live-css.
+hl.env("GIO_EXTRA_MODULES", os.getenv("HOME") .. "/.local/lib/gtk-live-css")

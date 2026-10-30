@@ -18,14 +18,11 @@ polkit-gnome
 qt6-wayland
 
 # --------------------------------------------------
-# Display Manager / SDDM / Hypr SDDM
+# Display Manager
 # --------------------------------------------------
-sddm
+
 qt6-declarative
 qt6-svg
-qt6-virtualkeyboard
-qt6-multimedia-ffmpeg
-qt6-imageformats
 git
 
 # --------------------------------------------------

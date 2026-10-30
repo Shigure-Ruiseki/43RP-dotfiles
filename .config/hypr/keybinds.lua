@@ -25,7 +25,6 @@ local clipboard_key     = "V"
 local layout_key        = "X"
 local float_key         = "Space"
 local record_key        = "SHIFT + R"
-local shot_key          = "Delete"
 local shot_area_key     = "SHIFT + S"
 
 do
@@ -57,7 +56,6 @@ do
             if kb_clipboard     then clipboard_key     = kb_clipboard end
             if kb_layout        then layout_key        = kb_layout end
             if kb_float         then float_key         = kb_float end
-            if kb_record        then record_key        = kb_record end
             if kb_shot_area     then shot_area_key     = kb_shot_area end
         end
     end
@@ -121,7 +119,6 @@ clipboard_key     = normalize_key(clipboard_key)
 layout_key        = normalize_key(layout_key)
 float_key         = normalize_key(float_key)
 record_key        = normalize_key(record_key)
-shot_key          = normalize_key(shot_key)
 shot_area_key     = normalize_key(shot_area_key)
 
 -- A single bad key string must not take the rest of the config down with it.
@@ -158,7 +155,6 @@ bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 bind(mainMod .. " + " .. bar_key, hl.dsp.exec_cmd("qs ipc call bar toggle"))
 bind(mainMod .. " + " .. clipboard_key, hl.dsp.exec_cmd("pgrep -x rofi >/dev/null && pkill -x rofi || cliphist list | rofi -dmenu -p '' | cliphist decode | wl-copy"))
 
-bind(shot_key, hl.dsp.exec_cmd("sh -c 'file=" .. home .. "/Pictures/$(date +%s).png; grim \"$file\"; wl-copy < \"$file\"; qs ipc call screenshot notify \"$file\"'"))
 bind(shot_area_key, hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/screenshot-area.sh"))
 
 bind(mainMod .. " + " .. layout_key, hl.dsp.exec_cmd("hyprctl switchxkblayout current next"))

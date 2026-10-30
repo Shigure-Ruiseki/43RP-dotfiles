@@ -28,18 +28,36 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("nm-applet")
     hl.exec_cmd("wl-paste --type text --watch cliphist store")
     hl.exec_cmd("wl-paste --type image --watch cliphist store")
-    hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1")
 
+    -- Polkit Authentication Agent
+    hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
+
+    -- Fcitx5 Input Method
+    hl.exec_cmd("fcitx5 -d")
+
+    -- Wallpaper
     hl.exec_cmd("awww-daemon")
     hl.exec_cmd("~/.config/hypr/scripts/wallpaper-restore.sh")
+
+    -- Quickshell
     hl.exec_cmd("sleep 2 && QSG_RENDER_LOOP=basic QS_ICON_THEME=Papirus qs")
 end)
 
 ---- ENVIRONMENT VARIABLES ----
-
+-- Cursor
 hl.env("XCURSOR_SIZE", "14")
+
+-- Wayland
 hl.env("QT_QPA_PLATFORM", "wayland")
 hl.env("MOZ_ENABLE_WAYLAND", "1")
+
+-- Kvantum (Qt 5 / Qt 6)
+hl.env("QT_STYLE_OVERRIDE", "kvantum")
+
+-- Fcitx5
+hl.env("XMODIFIERS", "@im=fcitx")
+hl.env("QT_IM_MODULE", "fcitx")
+hl.env("SDL_IM_MODULE", "fcitx")
 
 ---- INPUT ----
 

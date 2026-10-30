@@ -50,13 +50,14 @@ treeview.view:selected:focus {
     color: #ffffff;
 }
 
-/* Rubberband selection - drag rectangle */
+/* Rubberband: drag to select files */
 rubberband,
 .rubberband,
 .view rubberband,
 .view .rubberband,
 treeview rubberband,
 iconview rubberband {
-    background-color: alpha(@gtk_bg, 0.35);
-    border: 1px solid @gtk_bg;
+    background-color: alpha(@gtk_fg, 0.15);
+    border: 1px solid alpha(@gtk_fg, 0.55);
+    background-image: none;
 }

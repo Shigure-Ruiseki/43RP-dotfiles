@@ -53,6 +53,10 @@ esac
 
 [[ -n "$theme_img" && -f "$theme_img" ]] || exit 0
 
+# Sync wallpaper to Hypr SDDM
+"$HOME/.local/bin/sync-sddm-wallpaper" "$theme_img" \
+    >>"$HOME/.cache/43pr/sddm-sync.log" 2>&1
+
 # run theme.py, then make open GTK apps (Thunar etc.) reload the new colors
 setsid -f bash -c '
     python3 "$HOME/.config/43pr/bin/theme.py" wallpaper "$1"

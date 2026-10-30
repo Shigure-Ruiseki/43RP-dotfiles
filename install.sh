@@ -345,6 +345,71 @@ fi
 success "Pictures and Wallpapers directories ready."
 
 # --------------------------------------------------
+# SDDM + Hypr SDDM (Hyprlock-inspired login screen)
+# --------------------------------------------------
+
+info "Setting up SDDM + Hypr SDDM..."
+
+SDDM_THEME_DIR="/usr/share/sddm/themes/hyprsddm"
+SDDM_THEME_REPO="https://github.com/ADIOR-enigma/hypr-sddm.git"
+SDDM_CONF="/etc/sddm.conf.d/43pr-theme.conf"
+
+# VirtualKeyboard is required by this theme's Main.qml.
+if sudo pacman -S --needed --noconfirm \
+        sddm qt6-declarative qt6-svg qt6-virtualkeyboard; then
+    if [[ -f "$SDDM_THEME_DIR/Main.qml" ]]; then
+        info "Hypr SDDM is already installed; preserving local theme modifications."
+    else
+        SDDM_BUILD_DIR="$(mktemp -d)"
+        if git clone --depth 1 "$SDDM_THEME_REPO" "$SDDM_BUILD_DIR/hypr-sddm"; then
+            sudo mkdir -p "$SDDM_THEME_DIR"
+            if sudo cp -a "$SDDM_BUILD_DIR/hypr-sddm/." "$SDDM_THEME_DIR/"; then
+                success "Hypr SDDM theme installed."
+            else
+                warning "Could not copy Hypr SDDM theme."
+            fi
+        else
+            warning "Could not clone Hypr SDDM. Check your network connection."
+        fi
+        rm -rf "$SDDM_BUILD_DIR"
+    fi
+
+    if [[ -f "$SDDM_THEME_DIR/Main.qml" ]]; then
+        sudo mkdir -p /etc/sddm.conf.d
+        # Dedicated configuration file avoids overwriting existing SDDM settings.
+        printf '[Theme]\nCurrent=hyprsddm\n' | sudo tee "$SDDM_CONF" >/dev/null
+        success "SDDM configured to use Hypr SDDM."
+
+        # Only enable the display manager if no other one owns the system alias.
+        DM_ALIAS="/etc/systemd/system/display-manager.service"
+        if [[ -L "$DM_ALIAS" ]]; then
+            DM_TARGET="$(readlink -f "$DM_ALIAS")"
+            if [[ "$DM_TARGET" == */sddm.service ]]; then
+                info "SDDM is already selected as the display manager."
+            else
+                warning "Another display manager is configured ($DM_TARGET)."
+                warning "SDDM was installed but not enabled; switch managers manually after testing."
+            fi
+        elif [[ -e "$DM_ALIAS" ]]; then
+            warning "display-manager.service is present but is not a symlink; not changing it."
+        elif command -v systemctl >/dev/null 2>&1; then
+            if sudo systemctl enable sddm.service; then
+                success "SDDM enabled for the next boot (not started now)."
+            else
+                warning "Could not enable SDDM; check systemctl status sddm.service."
+            fi
+        fi
+
+        info "Preview after login: sddm-greeter-qt6 --test-mode --theme $SDDM_THEME_DIR"
+        info "Wallpaper synchronization and theme palette syncing require separate 43PR hooks."
+    else
+        warning "Hypr SDDM files are missing; skipped configuration and enabling."
+    fi
+else
+    warning "SDDM / Qt dependencies could not be installed; skipping Hypr SDDM."
+fi
+
+# --------------------------------------------------
 # Enable user audio services
 # --------------------------------------------------
 

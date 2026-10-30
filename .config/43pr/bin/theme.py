@@ -401,6 +401,62 @@ def reload_gtk(dark=None):
         warn(f"gtk reload failed: {e}")
 
 
+# ---------- SDDM / Hypr SDDM color sync ----------
+
+SDDM_THEME_USER_CONF = Path("/usr/share/sddm/themes/hyprsddm/theme.conf.user")
+
+def sync_sddm_colors(pal):
+    """Update the existing Hypr SDDM color overrides; never require sudo.
+
+    The file must already exist and be writable by this user (for example,
+    with a file-specific ACL).  Preserve other settings and sections.
+    """
+    path = SDDM_THEME_USER_CONF
+    if not path.is_file():
+        return  # SDDM theme is optional
+
+    values = {
+        "accentColor": pal["accent"],
+        "backgroundColor": pal["bg"],
+        "textColor": pal["fg"],
+        "primaryColor": pal["fg"],
+    }
+    try:
+        # In-place writing preserves file-specific ACLs.  A temp-file
+        # replacement would discard ACLs on a root-owned destination.
+        with path.open("r+", encoding="utf-8") as fh:
+            original = fh.read()
+            lines = original.splitlines(keepends=True)
+            section_start = next((i for i, line in enumerate(lines)
+                                  if line.strip().lower() == "[general]"), None)
+            if section_start is None:
+                if lines and not lines[-1].endswith("\n"):
+                    lines[-1] += "\n"
+                lines.extend(["[General]\n"] +
+                             [f"{k}={v}\n" for k, v in values.items()])
+            else:
+                section_end = next((i for i in range(section_start + 1, len(lines))
+                                    if lines[i].lstrip().startswith("[")), len(lines))
+                present = set()
+                for i in range(section_start + 1, section_end):
+                    match = re.match(r"^\s*([A-Za-z][A-Za-z0-9]*)\s*=", lines[i])
+                    if match and match.group(1) in values:
+                        key = match.group(1)
+                        lines[i] = f"{key}={values[key]}\n"
+                        present.add(key)
+                missing = [f"{k}={v}\n" for k, v in values.items() if k not in present]
+                if missing:
+                    if section_end > 0 and not lines[section_end - 1].endswith("\n"):
+                        lines[section_end - 1] += "\n"
+                    lines[section_end:section_end] = missing
+            updated = "".join(lines)
+            if updated != original:
+                fh.seek(0)
+                fh.write(updated)
+                fh.truncate()
+    except OSError as e:
+        warn(f"could not sync SDDM colors ({path}): {e}")
+
 # ---------- rendering ----------
 
 def render(text, pal, where):
@@ -458,6 +514,7 @@ def apply_palette(pal):
             shutil.copyfile(f, tmp)
             os.replace(tmp, dst)
         atomic_write(PALETTE, json.dumps(pal, indent=2))
+        sync_sddm_colors(pal)  # same palette for wallpaper, presets and mode switches
     finally:
         shutil.rmtree(stage, ignore_errors=True)
     try:                                           # folder icons follow the accent

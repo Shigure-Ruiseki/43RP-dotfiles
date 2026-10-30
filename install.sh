@@ -345,80 +345,86 @@ fi
 success "Pictures and Wallpapers directories ready."
 
 # --------------------------------------------------
-# SDDM + bundled Hypr SDDM theme
+# SilentSDDM (bundled theme + 43PR wallpaper sync)
 # --------------------------------------------------
 
-info "Setting up SDDM + Hypr SDDM..."
+info "Setting up SilentSDDM..."
 
-SDDM_SRC="$REPO_DIR/usr/share/sddm/themes/hyprsddm"
-SDDM_DEST="/usr/share/sddm/themes/hyprsddm"
+SDDM_SRC="$REPO_DIR/usr/share/sddm/themes/silent"
+SDDM_DEST="/usr/share/sddm/themes/silent"
 SDDM_CONF="/etc/sddm.conf.d/43pr.conf"
+SDDM_SYNC_SRC="$REPO_DIR/.config/43pr/bin/sync-sddm-wallpaper"
+SDDM_SYNC_DEST="$HOME/.local/bin/sync-silent-wallpaper"
 
-# Use the customized theme committed to this repository; do not re-clone
-# upstream, as that would discard 43PR-specific QML and colors.
 if [[ ! -f "$SDDM_SRC/Main.qml" ]]; then
-    warning "Bundled theme missing: $SDDM_SRC/Main.qml; skipping SDDM setup."
+    warning "Bundled SilentSDDM missing: $SDDM_SRC/Main.qml; skipping SDDM setup."
 elif ! sudo pacman -S --needed --noconfirm \
-        sddm qt6-declarative qt6-svg qt6-virtualkeyboard acl; then
-    warning "SDDM dependencies failed to install; skipping SDDM setup."
+        sddm qt6-declarative qt6-svg qt6-virtualkeyboard \
+        qt6-multimedia-ffmpeg qt6-imageformats ffmpeg python acl util-linux; then
+    warning "Failed to install SilentSDDM dependencies."
 else
     if [[ -f "$SDDM_DEST/Main.qml" ]]; then
-        info "Hypr SDDM already installed; preserving live theme changes."
+        info "SilentSDDM exists; preserving installed theme and customized presets."
+    elif sudo install -d "$SDDM_DEST" && sudo cp -a "$SDDM_SRC/." "$SDDM_DEST/"; then
+        sudo rm -rf "$SDDM_DEST/.git"
+        sudo chown -R root:root "$SDDM_DEST"
+        success "Bundled SilentSDDM installed."
     else
-        if sudo mkdir -p "$SDDM_DEST" && sudo cp -a "$SDDM_SRC/." "$SDDM_DEST/"; then
-            sudo chown -R root:root "$SDDM_DEST"
-            sudo chmod -R u=rwX,go=rX "$SDDM_DEST"
-            success "Installed bundled Hypr SDDM theme."
-        else
-            warning "Could not copy bundled Hypr SDDM theme."
-        fi
+        warning "Failed to install bundled SilentSDDM."
     fi
 
     if [[ -f "$SDDM_DEST/Main.qml" ]]; then
-        # A new copy should be system-owned. Keep existing installations intact.
-        # The login manager must be able to read theme files.
-        sudo mkdir -p /etc/sddm.conf.d
-        printf '[Theme]\nCurrent=hyprsddm\n' | sudo tee "$SDDM_CONF" >/dev/null
-        success "Configured SDDM theme: hyprsddm."
+        sudo install -d /etc/sddm.conf.d
+        printf '%s\n' \
+            '[General]' \
+            'InputMethod=qtvirtualkeyboard' \
+            'GreeterEnvironment=QML2_IMPORT_PATH=/usr/share/sddm/themes/silent/components/,QT_IM_MODULE=qtvirtualkeyboard' \
+            '' \
+            '[Theme]' \
+            'Current=silent' \
+            | sudo tee "$SDDM_CONF" >/dev/null
+        success "SDDM configured to use SilentSDDM."
 
-        # Allow the 43PR user session to update only the two runtime files.
-        # This deliberately does not grant write access to Main.qml or the theme folder.
-        if command -v setfacl >/dev/null 2>&1; then
-            for file in "$SDDM_DEST/theme.conf.user" "$SDDM_DEST/assets/background.jpg"; do
-                if [[ -f "$file" ]]; then
-                    sudo setfacl -m "u:$(id -un):rw" "$file" \
-                        || warning "Could not allow wallpaper/color sync: $file"
-                fi
-            done
+        # Resolve the active preset from the theme metadata, not by guessing.
+        SDDM_PRESET_REL="$(sed -nE '/^[[:space:]]*ConfigFile[[:space:]]*=/ { s/^[^=]*=[[:space:]]*//; s/[[:space:]]*$//; p; q; }' "$SDDM_DEST/metadata.desktop")"
+        if [[ "$SDDM_PRESET_REL" =~ ^configs/[A-Za-z0-9._-]+\.conf$ ]] \
+                && [[ -f "$SDDM_DEST/$SDDM_PRESET_REL" ]]; then
+            # This is an existing root-owned regular file; the sync helper writes
+            # it in place so the ACL remains valid.
+            sudo install -d "$SDDM_DEST/backgrounds"
+            SDDM_WALLPAPER="$SDDM_DEST/backgrounds/43pr-wallpaper.jpg"
+            if [[ ! -f "$SDDM_WALLPAPER" ]]; then
+                # The sync helper requires a pre-existing file.
+                sudo touch "$SDDM_WALLPAPER"
+            fi
+            if command -v setfacl >/dev/null 2>&1; then
+                sudo setfacl -m "u:$(id -un):rw" \
+                    "$SDDM_WALLPAPER" "$SDDM_DEST/$SDDM_PRESET_REL" \
+                    || warning "Could not grant SilentSDDM wallpaper/preset ACL."
+            else
+                warning "Missing setfacl; automatic wallpaper synchronization will fail."
+            fi
         else
-            warning "setfacl unavailable; live SDDM wallpaper/color sync may fail."
+            warning "Invalid or missing SilentSDDM preset in metadata.desktop: $SDDM_PRESET_REL"
         fi
 
-        # The 43PR wallpaper picker calls this script from commands.sh.
-        # Create it for fresh installations, without overwriting local changes.
-        SYNC_SCRIPT="$HOME/.local/bin/sync-sddm-wallpaper"
-        if [[ ! -e "$SYNC_SCRIPT" ]]; then
-            mkdir -p "$(dirname "$SYNC_SCRIPT")"
-            cat > "$SYNC_SCRIPT" <<'SYNC_WALLPAPER_EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-img="${1:?Missing wallpaper path}"
-target="/usr/share/sddm/themes/hyprsddm/assets/background.jpg"
-[[ -f "$img" ]] || { echo "Wallpaper not found: $img" >&2; exit 1; }
-[[ -f "$target" && -w "$target" ]] || { echo "SDDM wallpaper not writable: $target" >&2; exit 1; }
-tmp="$(mktemp --suffix=.jpg)"
-trap 'rm -f "$tmp"' EXIT
-ffmpeg -nostdin -hide_banner -loglevel error -y \
-    -i "$img" -frames:v 1 -update 1 "$tmp"
-[[ -s "$tmp" ]] || exit 1
-cat "$tmp" > "$target"
-echo "SDDM wallpaper synced: $img"
-SYNC_WALLPAPER_EOF
-            chmod +x "$SYNC_SCRIPT"
-            success "Installed SDDM wallpaper sync helper."
+        # Install user-side helper from the repo; do not bake scripts into install.sh.
+        if [[ -f "$SDDM_SYNC_SRC" ]]; then
+            mkdir -p "$(dirname "$SDDM_SYNC_DEST")"
+            if install -m 755 "$SDDM_SYNC_SRC" "$SDDM_SYNC_DEST"; then
+                success "Installed $SDDM_SYNC_DEST"
+                # Seed the login background on a fresh install if a wallpaper exists.
+                if [[ -f "$DEFAULT_WALLPAPER_DEST" && ! -s "$SDDM_WALLPAPER" ]]; then
+                    "$SDDM_SYNC_DEST" "$DEFAULT_WALLPAPER_DEST" \
+                        || warning "Could not seed SilentSDDM wallpaper."
+                fi
+            else
+                warning "Could not install SilentSDDM sync helper."
+            fi
+        else
+            warning "Missing sync helper in repo: $SDDM_SYNC_SRC"
         fi
 
-        # Select SDDM only if no other display manager is configured.
         DM_ALIAS="/etc/systemd/system/display-manager.service"
         if [[ -L "$DM_ALIAS" ]]; then
             if [[ "$(readlink -f "$DM_ALIAS")" == */sddm.service ]]; then
@@ -435,7 +441,7 @@ SYNC_WALLPAPER_EOF
         fi
         info "Preview: sddm-greeter-qt6 --test-mode --theme $SDDM_DEST"
     else
-        warning "Theme Main.qml is missing; SDDM was not enabled."
+        warning "SilentSDDM Main.qml is missing; SDDM was not enabled."
     fi
 fi
 

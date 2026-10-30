@@ -1,5 +1,6 @@
 @import "colors.css";
 
+/* Main background */
 window,
 .background,
 headerbar,
@@ -20,25 +21,65 @@ treeview.view text {
     background-image: none;
 }
 
+/* Global foreground */
 * {
     color: @gtk_fg;
 }
 
+/* Toolbars and menus */
 toolbar,
-toolbar * {
-    background-color: @gtk_bg;
-    background-image: none;
-}
-
+.toolbar,
 menubar,
-menubar *,
+.menubar,
 notebook,
-notebook * {
+notebook > header,
+notebook > stack {
     background-color: @gtk_bg;
     background-image: none;
 }
 
-/* Original selection colors for xed text area and lists */
+/* Bottom bar / Status bar */
+statusbar,
+.statusbar,
+actionbar,
+.action-bar {
+    background-color: @gtk_bg;
+    background-image: none;
+    color: @gtk_fg;
+    box-shadow: none;
+}
+
+/* Bottom bar children */
+statusbar label,
+statusbar frame,
+statusbar box,
+actionbar box,
+actionbar label {
+    background-color: transparent;
+    background-image: none;
+    color: @gtk_fg;
+}
+
+/* Info bars, including Trash notifications */
+infobar,
+.info,
+.warning,
+.question {
+    background-color: @gtk_bg;
+    background-image: none;
+    color: @gtk_fg;
+}
+
+/* Info bar content */
+infobar label,
+infobar box,
+infobar revealer {
+    background-color: transparent;
+    background-image: none;
+    color: @gtk_fg;
+}
+
+/* Selection colors for xed and file lists */
 textview text selection,
 textview selection,
 .view text selection,

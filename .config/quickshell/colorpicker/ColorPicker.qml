@@ -106,11 +106,8 @@ ShellRoot {
         var s = screenByName(curScreen);
         var nx = Math.max(0, Math.min(s.width - 1, Math.floor(mx) + dx));
         var ny = Math.max(0, Math.min(s.height - 1, Math.floor(my) + dy));
-        // update our own position so the loupe/sampler follow immediately,
-        // and repeated presses accumulate
         mx = nx;
         my = ny;
-        // also move the real cursor so it stays under the loupe
         Quickshell.execDetached(["hyprctl", "dispatch",
             "hl.dsp.cursor.move({ x = " + Math.round(s.x + nx) + ", y = " + Math.round(s.y + ny) + " })"]);
     }
@@ -143,12 +140,12 @@ ShellRoot {
 
     Variants {
         model: Quickshell.screens
-        PickerOverlay {
+        ColorPickerOverlay {
             required property var modelData
             screen: modelData
             ctl: root
         }
     }
 
-    EditorWindow { ctl: root }
+    ColorPickerEditor { ctl: root }
 }

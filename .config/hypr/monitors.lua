@@ -8,23 +8,7 @@
 -- hl.monitor({ output = "HDMI-A-1", disabled = true })
 
 -- MONITOR CONFIGURATION
-hl.monitor({
-    output = "DP-3",
-    disabled = false,
-    mode = "2560x1440@200",
-    position = "1920x0",
-    scale = 1,
-    cm = "srgb",
-})
-
-hl.monitor({
-    output = "HDMI-A-2",
-    disabled = false,
-    mode = "1920x1080@100",
-    position = "0x360",
-    scale = 1,
-    cm = "srgb",
-})
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 }) 
 
 -- 4. Duplicate
 -- hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 1 })

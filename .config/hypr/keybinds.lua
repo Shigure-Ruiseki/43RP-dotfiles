@@ -100,7 +100,7 @@ end
 
 terminal_key      = normalize_key(terminal_key)
 launcher_key      = normalize_key(launcher_key)
-qa_key         = normalize_key(qa_key)
+qa_key            = normalize_key(qa_key)
 files_key         = normalize_key(files_key)
 browser_key       = normalize_key(browser_key)
 close_key         = normalize_key(close_key)
@@ -134,7 +134,7 @@ local menu = "rofi -show drun"
 
 bind(mainMod .. " + " .. terminal_key,      hl.dsp.exec_cmd(terminal))
 bind(mainMod .. " + " .. launcher_key,      hl.dsp.exec_cmd("pgrep -x rofi >/dev/null && pkill -x rofi || " .. menu))
-bind(mainMod .. " + " .. qa_key,         hl.dsp.exec_cmd("qs ipc call qa toggle"))
+bind(mainMod .. " + " .. qa_key,            hl.dsp.exec_cmd("qs ipc call qa toggle"))
 bind(mainMod .. " + " .. files_key,         hl.dsp.exec_cmd(fileManager))
 bind(mainMod .. " + " .. browser_key,       hl.dsp.exec_cmd("python3 " .. home .. "/.config/hypr/scripts/default-browser.py"))
 bind(mainMod .. " + " .. close_key,         hl.dsp.window.close())
@@ -142,7 +142,7 @@ bind(mainMod .. " + " .. lock_key,          hl.dsp.exec_cmd("hyprlock"))
 bind(mainMod .. " + " .. power_key,         hl.dsp.exec_cmd("qs ipc call powermenu toggle"))
 bind(mainMod .. " + " .. settings_key,      hl.dsp.exec_cmd("qs ipc call settings toggle"))
 bind(mainMod .. " + " .. wallpapers_key,    hl.dsp.exec_cmd("qs -n -p ~/.config/quickshell/hyprquickpaper"))
-bind(mainMod .. " + " .. colorpicker_key,   hl.dsp.exec_cmd("qs -n -p ~/.config/quickshell/colorpicker"))
+bind(mainMod .. " + " .. colorpicker_key,   hl.dsp.exec_cmd("qs ipc call colorpicker toggle"))
 bind(mainMod .. " + " .. fullscreen_key,    hl.dsp.window.fullscreen({ mode = 0 }))
 bind(mainMod .. " + " .. opacity_key,       hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/opacity.sh"))
 bind(mainMod .. " + " .. theme_key,         hl.dsp.exec_cmd("python3 " .. home .. "/.config/43pr/bin/theme.py toggle"))
@@ -157,7 +157,27 @@ bind(mainMod .. " + " .. clipboard_key, hl.dsp.exec_cmd("pgrep -x rofi >/dev/nul
 
 bind(shot_area_key, hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/screenshot-area.sh"))
 
-bind(mainMod .. " + " .. layout_key, hl.dsp.exec_cmd("fcitx5-remote -t"))
+-- Custom binds created in Settings > Keybinds (state/custom_binds.lua).
+-- Keys are stored as full chords (SUPER only if it was held), so mainMod is not prepended.
+do
+    local f = home .. "/.config/quickshell/state/custom_binds.lua"
+    local fh = io.open(f, "r")
+    if fh then
+        fh:close()
+        local ok, custom = pcall(dofile, f)
+        if not ok then
+            print("state/custom_binds.lua failed: " .. tostring(custom))
+        elseif type(custom) == "table" then
+            for _, b in ipairs(custom) do
+                if b.key and b.cmd then
+                    bind(normalize_key(b.key), hl.dsp.exec_cmd(b.cmd))
+                end
+            end
+        end
+    end
+end
+
+bind(mainMod .. " + " .. layout_key, hl.dsp.exec_cmd("hyprctl switchxkblayout current next"))
 
 bind(mainMod .. " + " .. float_key, function()
     hl.dispatch(hl.dsp.window.float({ action = "toggle" }))
@@ -227,10 +247,10 @@ bind(mainMod .. " + SHIFT + J", hl.dsp.window.move({ direction = "down" }))
 bind(mainMod .. " + SHIFT + K", hl.dsp.window.move({ direction = "up" }))
 bind(mainMod .. " + SHIFT + L", hl.dsp.window.move({ direction = "right" }))
 
-bind(mainMod .. " + CTRL + H", hl.dsp.window.resize({ x = -40, y = 0 }), { repeating = true })
-bind(mainMod .. " + CTRL + L", hl.dsp.window.resize({ x = 40, y = 0 }), { repeating = true })
-bind(mainMod .. " + CTRL + K", hl.dsp.window.resize({ x = 0, y = -40 }), { repeating = true })
-bind(mainMod .. " + CTRL + J", hl.dsp.window.resize({ x = 0, y = 40 }), { repeating = true })
+bind(mainMod .. " + CTRL + H", hl.dsp.window.resize({ x = -40, y = 0, relative = true }), { repeating = true })
+bind(mainMod .. " + CTRL + L", hl.dsp.window.resize({ x = 40, y = 0, relative = true }), { repeating = true })
+bind(mainMod .. " + CTRL + K", hl.dsp.window.resize({ x = 0, y = -40, relative = true }), { repeating = true })
+bind(mainMod .. " + CTRL + J", hl.dsp.window.resize({ x = 0, y = 40, relative = true }), { repeating = true })
 
 bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
 bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"), { locked = true, repeating = true })

@@ -52,6 +52,7 @@ hl.env("QT_QPA_PLATFORM", "wayland")
 hl.env("MOZ_ENABLE_WAYLAND", "1")
 
 -- Kvantum (Qt 5 / Qt 6)
+hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
 hl.env("QT_STYLE_OVERRIDE", "kvantum")
 
 -- Fcitx5

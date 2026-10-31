@@ -56,6 +56,7 @@ do
             if kb_clipboard     then clipboard_key     = kb_clipboard end
             if kb_layout        then layout_key        = kb_layout end
             if kb_float         then float_key         = kb_float end
+            if kb_record        then record_key        = kb_record end
             if kb_shot_area     then shot_area_key     = kb_shot_area end
         end
     end
@@ -121,6 +122,8 @@ float_key         = normalize_key(float_key)
 record_key        = normalize_key(record_key)
 shot_area_key     = normalize_key(shot_area_key)
 
+
+
 -- A single bad key string must not take the rest of the config down with it.
 local function bind(keys, ...)
     local ok, err = pcall(hl.bind, keys, ...)
@@ -142,7 +145,7 @@ bind(mainMod .. " + " .. lock_key,          hl.dsp.exec_cmd("hyprlock"))
 bind(mainMod .. " + " .. power_key,         hl.dsp.exec_cmd("qs ipc call powermenu toggle"))
 bind(mainMod .. " + " .. settings_key,      hl.dsp.exec_cmd("qs ipc call settings toggle"))
 bind(mainMod .. " + " .. wallpapers_key,    hl.dsp.exec_cmd("qs -n -p ~/.config/quickshell/hyprquickpaper"))
-bind(mainMod .. " + " .. colorpicker_key,   hl.dsp.exec_cmd("qs ipc call colorpicker toggle"))
+bind(mainMod .. " + " .. colorpicker_key,    hl.dsp.exec_cmd("qs ipc call colorpicker toggle"))
 bind(mainMod .. " + " .. fullscreen_key,    hl.dsp.window.fullscreen({ mode = 0 }))
 bind(mainMod .. " + " .. opacity_key,       hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/opacity.sh"))
 bind(mainMod .. " + " .. theme_key,         hl.dsp.exec_cmd("python3 " .. home .. "/.config/43pr/bin/theme.py toggle"))
@@ -155,7 +158,7 @@ bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 bind(mainMod .. " + " .. bar_key, hl.dsp.exec_cmd("qs ipc call bar toggle"))
 bind(mainMod .. " + " .. clipboard_key, hl.dsp.exec_cmd("pgrep -x rofi >/dev/null && pkill -x rofi || cliphist list | rofi -dmenu -p '' | cliphist decode | wl-copy"))
 
-bind(shot_area_key, hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/screenshot-area.sh"))
+bind(mainMod .. " + " .. shot_area_key, hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/screenshot-area.sh"))
 
 -- Custom binds created in Settings > Keybinds (state/custom_binds.lua).
 -- Keys are stored as full chords (SUPER only if it was held), so mainMod is not prepended.
@@ -177,7 +180,7 @@ do
     end
 end
 
-bind(mainMod .. " + " .. layout_key, hl.dsp.exec_cmd("hyprctl switchxkblayout current next"))
+bind(mainMod .. " + " .. layout_key, hl.dsp.exec_cmd("fcitx5-remote -t"))
 
 bind(mainMod .. " + " .. float_key, function()
     hl.dispatch(hl.dsp.window.float({ action = "toggle" }))

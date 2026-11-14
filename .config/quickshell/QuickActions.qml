@@ -237,14 +237,23 @@ Scope {
 
     Process {
         id: brightCheck
-        command: ["brightnessctl", "-m"]
+        command: ["sh", "-c",
+            "ddcutil --bus 4 getvcp 10 --brief; ddcutil --bus 5 getvcp 10 --brief"
+        ]
+
         stdout: StdioCollector {
             onStreamFinished: {
-                var parts = text.trim().split(",")
-                if (parts.length >= 4) {
-                    var pct = parseInt(parts[3])
-                    if (!isNaN(pct)) root.brightness = pct / 100
-                }
+                var lines = text.trim().split("\n")
+                if (lines.length < 2)
+                    return
+
+                var values = lines.map(function(line) {
+                    var match = line.match(/(\d+)\s+(\d+)/)
+                    return match ? Number(match[1]) : NaN
+                })
+
+                if (!isNaN(values[0]) && !isNaN(values[1]))
+                    root.brightness = Math.min(values[0], values[1]) / 100
             }
         }
     }
@@ -266,10 +275,18 @@ Scope {
     // ---- brightness (throttled so dragging doesn't spawn a process per px)
     Timer {
         id: brightApplyTimer
-        interval: 60
-        onTriggered: Quickshell.execDetached({
-            command: ["brightnessctl", "set", Math.round(root.brightness * 100) + "%"]
-        })
+        interval: 150
+        onTriggered: {
+            var pct = String(Math.round(root.brightness * 100))
+
+            Quickshell.execDetached({
+                command: ["sh", "-c",
+                    "ddcutil --bus 4 setvcp 10 " + pct +
+                    " & ddcutil --bus 5 setvcp 10 " + pct +
+                    " & wait"
+                ]
+            })
+        }
     }
 
     // floor of 1% so you can't scroll the screen fully black

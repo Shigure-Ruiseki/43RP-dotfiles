@@ -3,9 +3,9 @@
 <img width="2171" height="724" alt="43pr_dotfiles_combined" src="assets/banner.png" />
 
 <p align="center">
-<img src="https://img.shields.io/badge/HYPRLAND-0.56.2-667A82?style=flat&labelColor=101418" height="20" alt="Hyprland">
+<img src="https://img.shields.io/badge/HYPRLAND-0.57-667A82?style=flat&labelColor=101418" height="20" alt="Hyprland">
 <a href="https://discord.gg/j32UAE4WFP"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2Fj32UAE4WFP%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&style=flat&logo=discord&logoColor=ffffff&label=DISCORD&labelColor=101418&color=7289a8" height="20" alt="Discord"></a>
-<a href="https://www.youtube.com/@43PR2"><img src="https://img.shields.io/badge/YOUTUBE-SUBSCRIBE-b05a63?style=flat&logo=youtube&logoColor=ffffff&labelColor=101418" height="20" alt="YouTube"></a>
+<a href="https://www.youtube.com/@43PR"><img src="https://img.shields.io/badge/YOUTUBE-SUBSCRIBE-b05a63?style=flat&logo=youtube&logoColor=ffffff&labelColor=101418" height="20" alt="YouTube"></a>
 <a href="https://ko-fi.com/43pr"><img src="https://img.shields.io/badge/SUPPORT-KOFI?style=flat&logo=ko-fi&logoColor=ffffff&label=KO--FI&labelColor=101418&color=9a6570" height="20" alt="Ko-Fi"></a>
 </p>
 
@@ -22,58 +22,46 @@
 </p>
 
 <details>
-<summary><b>✧ What is this?</b></summary>
+<summary><b>✧ What is this? Requirements?</b></summary>
 
 <br>
 
 A full customizable Linux desktop: bar, system settings and menus to customize your desktop. Built on **Hyprland** (window manager) and **Quickshell** (what the bar and menus are made with). 
 
-This setup aims to keep things simple, fast and practical, and easy to make your own without editing config files.
+This setup aims to keep things simple, fast, practical, and easy to make your own without editing config files.
 
 ### Requirements
 
 - **Arch-based distro:** Arch, CachyOS, EndeavourOS, Manjaro, etc.
 - **A mostly clean install.** Replaced configs are backed up automatically.
 
-> New to Linux? I recommend [CachyOS](https://youtu.be/eo9MejbzWto). Skip the configuration part of the video, just run the install command after installing the system.
+> New to Linux? I recommend watching this [CachyOS Tutorial](https://www.youtube.com/watch?v=rJcrb7vxoCo). 
 
 **Need help?** Join the Discord (button above).
 
-### Is it hard to use?
+### Hardware
 
-Not really. Almost everything is a keyboard shortcut, with mouse alternatives.
+- RAM: 4 GB minimum, 8 GB recommended.
+- GPU: Intel, AMD or NVIDIA with compatible wayland drivers.
+- Display: Will look much better in FHD or higher.
 
-| Action | Keyboard | Mouse |
-|---|---|---|
-| Open quick actions | `Super + S` | Right-click the clock |
-| Open settings | `Super + I` | Middle-click the clock |
-
-It includes options to change binds/shortcuts.
-
-See all [Keybinds](#keybinds), or hover over bar elements to see what they do.
+As reference I made this project with a i5 6th dell laptop with integrated graphics so it should be really smooth in other potatoes too.
 
 </details>
 
 ## Features
 
-- **Fast & Lightweight Quickshell** — Optimized desktop components designed to be fast and easy to customize.
-- **Top bar** - Customizable bar with settings menu, and quick shortcuts.
-- **Settings** — System settings, customize hyprland appearance, bar & themes.
-- **Wallpaper picker & Dynamic Colors** — Wallpaper-based color generation & live wallpapers support.
-- **Preset Themes** — Monochrome, Nord, Tokyo Night and other popular ones, with support for creating your own.
+- **Quickshell** — Fast, lightweight, customizable desktop components.
+- **Top bar** - Customizable bar with settings, and quick shortcuts.
+- **Settings** — System settings, customize hyprland appearance, and themes.
+- **Wallpaper picker** — Customizable | Wallpaper-based color generation, and live wallpapers.
+- **Preset Themes** — Monochrome, Nord, Tokyo Night and more, with custom theme support.
 - **App Launcher** — **Rofi** App search, clipboard history, and opacity controls.
-- **Zsh + Starship** — Customizable shell with autosuggestions and history.
-- **Notes & Reminders** —  Quick notes, tasks, and reminders.
-- **Quick Actions** - Customizable quick actions for Wi-Fi, Bluetooth, night light, and more.
-- **Power Menu** — Customizable power menu to shut down, reboot, log out, etc.
-- **Hyprlock** — Custom lock screen.
-- **Spotify + Spicetify** — Custom theme based on **text - darkthemer**, (modified).
-
-> All programs: [packages.txt](packages.txt)
+- **Zsh + Starship** — Enhanced shell with autosuggestions and command history.
 
 ## Keybinds
 
-Middle click the clock to open settings. To close components use Esc key or use the same keybind. Hover over elements to see actions. 
+Hover over elements to see actions. 
 
 | Keybind                 | Action                    |
 | -----------             | ------------------------- |
@@ -88,19 +76,17 @@ Middle click the clock to open settings. To close components use Esc key or use 
 | `Super + B`             | Browser                   |
 | `Super + V`             | Clipboard history         |
 | `Super + I`             | Settings menu             |
-| `Super + S`             | Quick actions             |
+| `Super + Grave`         | Logout menu               |
+| `Super + S`             | Side panel                |
 | `Super + O`             | Switch opacity            |
 | `Super + C`             | Notes & Reminders         |
 | `Super + W`             | Wallpaper selector        |
 | `Super + Shift + C`     | Color picker tool         |
 | `Super + Mouse wheel`   | Zoom in/out               |
 | `Super + Shift + W`     | Toggle bar                |
-| `Super + Grave`         | Logout menu               |
 | `Super + Tab`           | Lock screen               |
-| `Super + N`             | Notifications             |
 | `Super + R`             | Toggle screen recorder    |
-| `Delete`                | Screenshot fullscreen     |
-| `SHIFT + Delete`        | Screenshot area select    |
+| `SHIFT + F12`           | Text extractor (OCR)      |
 
 > [!note]
 >
@@ -131,6 +117,12 @@ chmod +x install.sh
 ```
 
 After the installation finishes log out and back in. 
+
+> Check settings and keybinds first.
+>
+> Right-click on desktop components to customize them. 
+>
+> To close components use Esc key or use the same keybind. 
 
 > [!important]
 > **Do not move or delete the dotfiles repository after installation.**

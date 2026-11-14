@@ -40,7 +40,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("~/.config/hypr/scripts/wallpaper-restore.sh")
 
     -- Quickshell
-    hl.exec_cmd("sleep 2 && QSG_RENDER_LOOP=basic QS_ICON_THEME=Papirus qs")
+    hl.exec_cmd("sleep 1 && QSG_RENDER_LOOP=basic QS_ICON_THEME=Papirus qs")
 end)
 
 ---- ENVIRONMENT VARIABLES ----
@@ -64,7 +64,7 @@ hl.env("SDL_IM_MODULE", "fcitx")
 
 hl.config({
     input = {
-        kb_layout = "us,latam",
+        kb_layout = "us",
         follow_mouse = 1,
         sensitivity = 0.5,
         touchpad = {

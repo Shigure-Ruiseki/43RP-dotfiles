@@ -37,15 +37,26 @@ Item {
     property var installed: []
     property bool reloadAfterSave: false
 
+    // Number of columns in the keybind grid
+    readonly property int bindColumns: 3
+
+    // Screenshot actions (state/screenshot.conf, read at runtime by the
+    // screenshot binds, so no Hyprland reload is needed)
+    property bool shotFullSave: true
+    property bool shotFullClip: true
+    property bool shotAreaSave: true
+    property bool shotAreaClip: true
+    readonly property string shotPath: home + "/.config/quickshell/state/screenshot.conf"
+
     // Editable binds (saved to state/binds.lua as kb_<id>)
     readonly property var bindDefs: [
         { id: "terminal",      label: "TERMINAL",                    def: "T" },
         { id: "launcher",      label: "LAUNCHER",                    def: "D" },
         { id: "files",         label: "FILE MANAGER",                def: "E" },
-        { id: "browser",       label: "BROWSER",                     def: "B" },
-        { id: "settings",      label: "SETTINGS",                    def: "I" },
-        { id: "qa",            label: "QUICK ACTIONS",               def: "S" },
         { id: "close",         label: "CLOSE ACTIVE WINDOW",         def: "Q" },
+        { id: "settings",      label: "SETTINGS",                    def: "I" },
+        { id: "browser",       label: "BROWSER",                     def: "B" },
+        { id: "sidepanel",     label: "SIDE PANEL",                  def: "S" },
         { id: "fullscreen",    label: "FULLSCREEN",                  def: "F" },
         { id: "float",         label: "FLOATING WINDOW",             def: "Space" },
         { id: "lock",          label: "LOCK SCREEN",                 def: "Tab" },
@@ -56,13 +67,13 @@ Item {
         { id: "colorpicker",   label: "COLOR PICKER",                def: "SHIFT + C" },
         { id: "wallpapers",    label: "WALLPAPERS PICKER",           def: "W" },
         { id: "record",        label: "TOGGLE SCREEN RECORDING",     def: "R" },
-        { id: "notifications", label: "NOTIFICATIONS",               def: "N" },
         { id: "theme",         label: "TOGGLE DARK/LIGHT MODE",      def: "period" },
         { id: "bar",           label: "TOGGLE BAR",                  def: "SHIFT + W" },
         { id: "layout",        label: "KB LAYOUT",                   def: "X" },
         // noSuper: bound as-is in keybinds.lua, SUPER is not prepended
         { id: "shot",          label: "SCREENSHOT (FULL)",           def: "Delete",         noSuper: true },
-        { id: "shot_area",     label: "SCREENSHOT (AREA)",           def: "SHIFT + Delete", noSuper: true }
+        { id: "shot_area",     label: "SCREENSHOT (AREA)",           def: "SHIFT + Delete", noSuper: true },
+        { id: "ocr",           label: "TEXT EXTRACTOR (OCR)",        def: "SHIFT + F12",    noSuper: true }
     ]
 
     // Fixed binds hardcoded in keybinds.lua (display only, not editable)
@@ -434,6 +445,203 @@ Item {
         browserSetter.running = true
     }
 
+    // ---- screenshot options -------------------------------------------
+
+    function parseShot(t) {
+        const get = (k, cur) => {
+            const m = new RegExp("^\\s*" + k + "\\s*=\\s*([01])", "m").exec(t)
+            return m ? m[1] === "1" : cur
+        }
+        shotFullSave = get("shot_full_save", shotFullSave)
+        shotFullClip = get("shot_full_clip", shotFullClip)
+        shotAreaSave = get("shot_area_save", shotAreaSave)
+        shotAreaClip = get("shot_area_clip", shotAreaClip)
+    }
+
+    function saveShot() {
+        const b = v => v ? "1" : "0"
+        shotWriter.body = "shot_full_save=" + b(shotFullSave) + "\n"
+                        + "shot_full_clip=" + b(shotFullClip) + "\n"
+                        + "shot_area_save=" + b(shotAreaSave) + "\n"
+                        + "shot_area_clip=" + b(shotAreaClip) + "\n"
+        shotWriter.running = false
+        shotWriter.running = true
+    }
+
+    // At least one of save / clipboard must stay on, otherwise the
+    // screenshot would be thrown away.
+    function setShotOpt(prop, value) {
+        const pair = prop.indexOf("shotFull") === 0
+            ? ["shotFullSave", "shotFullClip"]
+            : ["shotAreaSave", "shotAreaClip"]
+        const other = pair[0] === prop ? pair[1] : pair[0]
+        if (!value && !page[other]) return
+        page[prop] = value
+        saveShot()
+    }
+
+    // ---- OCR languages ------------------------------------------------
+
+    // Arch package is tesseract-data-<code>
+    readonly property var ocrCatalog: [
+        { code: "eng", label: "ENGLISH" },      { code: "spa", label: "SPANISH" },
+        { code: "fra", label: "FRENCH" },       { code: "deu", label: "GERMAN" },
+        { code: "ita", label: "ITALIAN" },      { code: "por", label: "PORTUGUESE" },
+        { code: "nld", label: "DUTCH" },        { code: "pol", label: "POLISH" },
+        { code: "rus", label: "RUSSIAN" },      { code: "ukr", label: "UKRAINIAN" },
+        { code: "tur", label: "TURKISH" },      { code: "ara", label: "ARABIC" },
+        { code: "heb", label: "HEBREW" },       { code: "hin", label: "HINDI" },
+        { code: "jpn", label: "JAPANESE" },     { code: "kor", label: "KOREAN" },
+        { code: "chi_sim", label: "CHINESE (SIMPL.)" }, { code: "chi_tra", label: "CHINESE (TRAD.)" },
+        { code: "vie", label: "VIETNAMESE" },   { code: "tha", label: "THAI" },
+        { code: "ind", label: "INDONESIAN" },   { code: "swe", label: "SWEDISH" },
+        { code: "dan", label: "DANISH" },       { code: "nor", label: "NORWEGIAN" },
+        { code: "fin", label: "FINNISH" },      { code: "ces", label: "CZECH" },
+        { code: "hun", label: "HUNGARIAN" },    { code: "ron", label: "ROMANIAN" },
+        { code: "ell", label: "GREEK" },        { code: "cat", label: "CATALAN" },
+        { code: "lat", label: "LATIN" }
+    ]
+
+    property var ocrInstalled: []        // codes reported by `tesseract --list-langs`
+    property var ocrSelected: ["eng"]    // codes used by the OCR bind
+    property string ocrInstalling: ""    // code being installed right now
+    property string ocrError: ""
+    property string ocrQuery: ""
+    readonly property string ocrPath: home + "/.config/quickshell/state/ocr.conf"
+
+    // Catalog plus any installed language that is not in it
+    readonly property var ocrList: {
+        const known = ocrCatalog.map(l => l.code)
+        const extra = ocrInstalled
+            .filter(c => known.indexOf(c) < 0)
+            .map(c => ({ code: c, label: c.toUpperCase() }))
+        const q = ocrQuery.trim().toLowerCase()
+        return ocrCatalog.concat(extra).filter(l =>
+            !q || l.label.toLowerCase().indexOf(q) >= 0 || l.code.indexOf(q) >= 0)
+    }
+
+    function parseOcr(t) {
+        const m = /^\s*ocr_lang\s*=\s*(\S+)/m.exec(t || "")
+        if (!m) return
+        const arr = m[1].split("+").filter(s => /^[A-Za-z0-9_]+$/.test(s))
+        if (arr.length > 0) ocrSelected = arr
+    }
+
+    function saveOcr() {
+        ocrWriter.body = "ocr_lang=" + ocrSelected.join("+") + "\n"
+        ocrWriter.running = false
+        ocrWriter.running = true
+    }
+
+    function refreshOcr() {
+        if (!ocrDetect.running) ocrDetect.running = true
+    }
+
+    function toggleOcrLang(code) {
+        const on = ocrSelected.indexOf(code) >= 0
+        // keep at least one language selected
+        if (on && ocrSelected.length === 1) return
+        ocrSelected = on ? ocrSelected.filter(c => c !== code) : ocrSelected.concat([code])
+        saveOcr()
+    }
+
+    function installOcrLang(code) {
+        if (ocrInstaller.running) return
+        ocrError = ""
+        ocrInstalling = code
+        ocrInstaller.code = code
+        ocrInstaller.running = true
+    }
+
+    function ocrClick(code) {
+        if (ocrInstalling !== "") return
+        if (ocrInstalled.indexOf(code) >= 0) toggleOcrLang(code)
+        else installOcrLang(code)
+    }
+
+    FileView {
+        id: ocrFile
+        path: page.ocrPath
+        printErrors: false
+        onLoaded: page.parseOcr(text())
+    }
+
+    Process {
+        id: ocrWriter
+        property string body: ""
+        command: [
+            "sh", "-c",
+            "mkdir -p -- \"$1\" && printf '%s' \"$2\" > \"$3\"",
+            "ocrwrite",
+            page.home + "/.config/quickshell/state",
+            body,
+            page.ocrPath
+        ]
+        onExited: code => {
+            if (code !== 0)
+                console.warn("KeybindsPage: OCR settings save failed (" + code + ")")
+        }
+    }
+
+    // First line of the output is a header ("List of available languages ...")
+    Process {
+        id: ocrDetect
+        command: ["tesseract", "--list-langs"]
+        stdout: StdioCollector {
+            onStreamFinished: page.ocrInstalled = text.split("\n")
+                .slice(1)
+                .map(s => s.trim())
+                .filter(s => s.length > 0 && s !== "osd")
+        }
+    }
+
+    // Needs root: pkexec shows the polkit prompt (a polkit agent must be running)
+    Process {
+        id: ocrInstaller
+        property string code: ""
+        command: ["pkexec", "pacman", "-S", "--needed", "--noconfirm", "tesseract-data-" + code]
+        onExited: (exitCode, exitStatus) => {
+            const code = ocrInstaller.code
+            page.ocrInstalling = ""
+            if (exitCode === 0) {
+                // newly installed language becomes active right away
+                if (page.ocrSelected.indexOf(code) < 0) {
+                    page.ocrSelected = page.ocrSelected.concat([code])
+                    page.saveOcr()
+                }
+            } else if (exitCode === 126 || exitCode === 127) {
+                page.ocrError = "Authentication cancelled or pkexec not found."
+            } else {
+                page.ocrError = "Could not install tesseract-data-" + code + " (exit " + exitCode + ")."
+            }
+            page.refreshOcr()
+        }
+    }
+
+    FileView {
+        id: shotFile
+        path: page.shotPath
+        printErrors: false
+        onLoaded: page.parseShot(text())
+    }
+
+    Process {
+        id: shotWriter
+        property string body: ""
+        command: [
+            "sh", "-c",
+            "mkdir -p -- \"$1\" && printf '%s' \"$2\" > \"$3\"",
+            "shotwrite",
+            page.home + "/.config/quickshell/state",
+            body,
+            page.shotPath
+        ]
+        onExited: code => {
+            if (code !== 0)
+                console.warn("KeybindsPage: screenshot settings save failed (" + code + ")")
+        }
+    }
+
     Process {
         id: browserQuery
         command: ["xdg-mime", "query", "default", "x-scheme-handler/https"]
@@ -454,9 +662,9 @@ Item {
             page.refreshBrowser()
         }
     }
-    onVisibleChanged: if (visible) refreshBrowser()
+    onVisibleChanged: if (visible) { refreshBrowser(); refreshOcr() }
 
-    Component.onCompleted: { initBindKeys(); refreshBrowser(); }
+    Component.onCompleted: { initBindKeys(); refreshBrowser(); refreshOcr(); }
 
     // Invisible focus target. While a row is selected, the next real key
     // (Super+Enter, Super+Shift+C, …) is written and Hyprland is reloaded.
@@ -651,6 +859,45 @@ Item {
         font.family: Theme.fontFamily
         font.pixelSize: Theme.textSizeSmall
     }
+    component ShotOption: Column {
+        id: opt
+        property string title: ""
+        property bool save: true
+        property bool clip: true
+        signal saveToggled(bool value)
+        signal clipToggled(bool value)
+
+        width: parent.width
+        spacing: 8
+
+        Text {
+            text: opt.title
+            color: Theme.text
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.textSizeGroup
+            font.bold: true
+            font.letterSpacing: 1
+        }
+
+        Row {
+            width: parent.width
+            spacing: 8
+
+            ChoiceButton {
+                width: (parent.width - parent.spacing) / 2
+                label: "SAVE TO FOLDER"
+                current: opt.save
+                onClicked: opt.saveToggled(!opt.save)
+            }
+            ChoiceButton {
+                width: (parent.width - parent.spacing) / 2
+                label: "COPY TO CLIPBOARD"
+                current: opt.clip
+                onClicked: opt.clipToggled(!opt.clip)
+            }
+        }
+    }
+
     component CodeBlock: Rectangle {
         property alias text: codeText.text
         width: parent.width
@@ -959,9 +1206,9 @@ Item {
                         Grid {
                             id: bindGrid
                             width: parent.width
-                            columns: 2
+                            columns: page.bindColumns
                             spacing: 8
-                            property real cellWidth: (width - spacing) / 2
+                            property real cellWidth: Math.floor((width - spacing * (columns - 1)) / columns)
                             Repeater {
                                 model: page.shownBinds
                                 delegate: BindRow {
@@ -1048,6 +1295,118 @@ Item {
                                 current: page.browserBin === modelData.bin
                                 onClicked: page.setBrowser(modelData)
                             }
+                        }
+                    }
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: 10
+                topPadding: 6
+
+                SectionTitle { text: "SCREENSHOTS" }
+
+                Card {
+                    Column {
+                        width: parent.width
+                        spacing: 16
+
+                        ShotOption {
+                            title: "SCREENSHOT (FULL)"
+                            save: page.shotFullSave
+                            clip: page.shotFullClip
+                            onSaveToggled: v => page.setShotOpt("shotFullSave", v)
+                            onClipToggled: v => page.setShotOpt("shotFullClip", v)
+                        }
+
+                        Rectangle { width: parent.width; height: 1; color: Theme.border }
+
+                        ShotOption {
+                            title: "SCREENSHOT (AREA)"
+                            save: page.shotAreaSave
+                            clip: page.shotAreaClip
+                            onSaveToggled: v => page.setShotOpt("shotAreaSave", v)
+                            onClipToggled: v => page.setShotOpt("shotAreaClip", v)
+                        }
+
+                        HelpText {
+                            text: "Screenshots are saved to ~/Pictures/Screenshots. At least one option stays on. "
+                                  + "Changes apply to the next screenshot, no reload needed."
+                        }
+                    }
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: 10
+                topPadding: 6
+
+                SectionTitle { text: "OCR LANGUAGES" }
+
+                Card {
+                    Column {
+                        width: parent.width
+                        spacing: 10
+
+                        InputField {
+                            width: parent.width
+                            placeholderText: "SEARCH LANGUAGE"
+                            onTextChanged: page.ocrQuery = text
+                            Keys.onEscapePressed: function(event) {
+                                if (text !== "") { text = ""; event.accepted = true }
+                                else { focus = false; page.closeRequested() }
+                            }
+                        }
+
+                        Flow {
+                            id: ocrFlow
+                            width: parent.width
+                            spacing: page.sectionSpacing
+                            readonly property int cols: 4
+
+                            Repeater {
+                                model: page.ocrList
+
+                                delegate: ChoiceButton {
+                                    required property var modelData
+                                    readonly property bool installed: page.ocrInstalled.indexOf(modelData.code) >= 0
+                                    width: (ocrFlow.width - ocrFlow.spacing * (ocrFlow.cols - 1)) / ocrFlow.cols
+                                    label: page.ocrInstalling === modelData.code ? "INSTALLING…"
+                                           : (installed ? modelData.label : "+ " + modelData.label)
+                                    current: installed && page.ocrSelected.indexOf(modelData.code) >= 0
+                                    opacity: installed || page.ocrInstalling === modelData.code ? 1 : 0.55
+                                    onClicked: page.ocrClick(modelData.code)
+                                }
+                            }
+                        }
+
+                        Text {
+                            visible: page.ocrList.length === 0
+                            width: parent.width
+                            text: "NO MATCHES"
+                            color: Theme.textDim
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.textSizeGroup
+                            font.bold: true
+                            font.letterSpacing: 1
+                        }
+
+                        HelpText {
+                            visible: page.ocrError !== ""
+                            text: page.ocrError
+                            color: Theme.accent
+                        }
+
+                        HelpText {
+                            text: "Highlighted languages are used by the text extractor (OCR) bind: "
+                                  + page.ocrSelected.join(" + ") + ". "
+                                  + "Click an installed language to toggle it (at least one stays on). "
+                                  + "Languages marked + are not installed; clicking one installs "
+                                  + "tesseract-data-<code> with pacman (asks for your password via pkexec). "
+                                  + "Using several languages at once can be slower and less accurate. "
+                                  + "Changes apply to the next OCR, no reload needed."
                         }
                     }
                 }

@@ -6,7 +6,7 @@
 -- terminal/browser — those globals are the program names from hyprland.lua).
 local terminal_key      = "T"
 local launcher_key      = "D"
-local qa_key            = "S"
+local sidepanel_key     = "S"
 local files_key         = "E"
 local browser_key       = "B"
 local close_key         = "Q"
@@ -18,7 +18,6 @@ local colorpicker_key   = "SHIFT + C"
 local fullscreen_key    = "F"
 local opacity_key       = "O"
 local theme_key         = "period"
-local notifications_key = "N"
 local todo_key          = "C"
 local bar_key           = "SHIFT + W"
 local clipboard_key     = "V"
@@ -26,6 +25,7 @@ local layout_key        = "X"
 local float_key         = "Space"
 local record_key        = "SHIFT + R"
 local shot_area_key     = "SHIFT + S"
+local ocr_key           = "SHIFT + F12"
 
 do
     local f = os.getenv("HOME") .. "/.config/quickshell/state/binds.lua"
@@ -38,7 +38,7 @@ do
         else
             if kb_terminal      then terminal_key      = kb_terminal end
             if kb_launcher      then launcher_key      = kb_launcher end
-            if kb_qa         then qa_key         = kb_qa end
+            if kb_sidepanel_key then sidepanel_key     = kb_sidepanel end
             if kb_files         then files_key         = kb_files end
             if kb_browser       then browser_key       = kb_browser end
             if kb_close         then close_key         = kb_close end
@@ -50,7 +50,6 @@ do
             if kb_fullscreen    then fullscreen_key    = kb_fullscreen end
             if kb_opacity       then opacity_key       = kb_opacity end
             if kb_theme         then theme_key         = kb_theme end
-            if kb_notifications then notifications_key = kb_notifications end
             if kb_todo          then todo_key          = kb_todo end
             if kb_bar           then bar_key           = kb_bar end
             if kb_clipboard     then clipboard_key     = kb_clipboard end
@@ -58,6 +57,7 @@ do
             if kb_float         then float_key         = kb_float end
             if kb_record        then record_key        = kb_record end
             if kb_shot_area     then shot_area_key     = kb_shot_area end
+            if kb_ocr           then ocr_key           = kb_ocr end
         end
     end
 end
@@ -101,7 +101,7 @@ end
 
 terminal_key      = normalize_key(terminal_key)
 launcher_key      = normalize_key(launcher_key)
-qa_key            = normalize_key(qa_key)
+sidepanel_key     = normalize_key(sidepanel_key)
 files_key         = normalize_key(files_key)
 browser_key       = normalize_key(browser_key)
 close_key         = normalize_key(close_key)
@@ -113,7 +113,6 @@ colorpicker_key   = normalize_key(colorpicker_key)
 fullscreen_key    = normalize_key(fullscreen_key)
 opacity_key       = normalize_key(opacity_key)
 theme_key         = normalize_key(theme_key)
-notifications_key = normalize_key(notifications_key)
 todo_key          = normalize_key(todo_key)
 bar_key           = normalize_key(bar_key)
 clipboard_key     = normalize_key(clipboard_key)
@@ -121,7 +120,7 @@ layout_key        = normalize_key(layout_key)
 float_key         = normalize_key(float_key)
 record_key        = normalize_key(record_key)
 shot_area_key     = normalize_key(shot_area_key)
-
+ocr_key           = normalize_key(ocr_key)
 
 
 -- A single bad key string must not take the rest of the config down with it.
@@ -137,7 +136,7 @@ local menu = "rofi -show drun"
 
 bind(mainMod .. " + " .. terminal_key,      hl.dsp.exec_cmd(terminal))
 bind(mainMod .. " + " .. launcher_key,      hl.dsp.exec_cmd("pgrep -x rofi >/dev/null && pkill -x rofi || " .. menu))
-bind(mainMod .. " + " .. qa_key,            hl.dsp.exec_cmd("qs ipc call qa toggle"))
+bind(mainMod .. " + " .. sidepanel_key,         hl.dsp.exec_cmd("qs ipc call sidepanel toggle"))
 bind(mainMod .. " + " .. files_key,         hl.dsp.exec_cmd(fileManager))
 bind(mainMod .. " + " .. browser_key,       hl.dsp.exec_cmd("python3 " .. home .. "/.config/hypr/scripts/default-browser.py"))
 bind(mainMod .. " + " .. close_key,         hl.dsp.window.close())
@@ -145,11 +144,10 @@ bind(mainMod .. " + " .. lock_key,          hl.dsp.exec_cmd("hyprlock"))
 bind(mainMod .. " + " .. power_key,         hl.dsp.exec_cmd("qs ipc call powermenu toggle"))
 bind(mainMod .. " + " .. settings_key,      hl.dsp.exec_cmd("qs ipc call settings toggle"))
 bind(mainMod .. " + " .. wallpapers_key,    hl.dsp.exec_cmd("qs -n -p ~/.config/quickshell/hyprquickpaper"))
-bind(mainMod .. " + " .. colorpicker_key,    hl.dsp.exec_cmd("qs ipc call colorpicker toggle"))
+bind(mainMod .. " + " .. colorpicker_key,   hl.dsp.exec_cmd("qs ipc call colorpicker toggle"))
 bind(mainMod .. " + " .. fullscreen_key,    hl.dsp.window.fullscreen({ mode = 0 }))
 bind(mainMod .. " + " .. opacity_key,       hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/opacity.sh"))
 bind(mainMod .. " + " .. theme_key,         hl.dsp.exec_cmd("python3 " .. home .. "/.config/43pr/bin/theme.py toggle"))
-bind(mainMod .. " + " .. notifications_key, hl.dsp.exec_cmd("qs ipc call notifications toggle"))
 bind(mainMod .. " + " .. todo_key,          hl.dsp.exec_cmd("qs ipc call todo toggle"))
 
 bind(mainMod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
@@ -159,6 +157,24 @@ bind(mainMod .. " + " .. bar_key, hl.dsp.exec_cmd("qs ipc call bar toggle"))
 bind(mainMod .. " + " .. clipboard_key, hl.dsp.exec_cmd("pgrep -x rofi >/dev/null && pkill -x rofi || cliphist list | rofi -dmenu -p '' | cliphist decode | wl-copy"))
 
 bind(mainMod .. " + " .. shot_area_key, hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/screenshot-area.sh"))
+bind(shot_key, hl.dsp.exec_cmd([==[sh -c '
+conf="$HOME/.config/quickshell/state/screenshot.conf"
+[ -r "$conf" ] && . "$conf"
+stamp="$(date +%F_%H-%M-%S).png"
+if [ "${shot_full_save:-1}" = 1 ]; then
+    dir="$HOME/Pictures/Screenshots"
+    mkdir -p "$dir"
+    file="$dir/$stamp"
+else
+    file="/tmp/shot-$stamp"
+fi
+grim "$file" || exit 1
+if [ "${shot_full_clip:-1}" = 1 ]; then wl-copy --type image/png < "$file"; fi
+qs ipc call screenshot notify "$file"
+']==]))
+bind(shot_area_key, hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/screenshot-area.sh"))
+
+bind(ocr_key, hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/ocr-area.sh"))
 
 -- Custom binds created in Settings > Keybinds (state/custom_binds.lua).
 -- Keys are stored as full chords (SUPER only if it was held), so mainMod is not prepended.

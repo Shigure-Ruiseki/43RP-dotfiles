@@ -22,36 +22,36 @@ Scope {
     // ---- constants / specs -----------------------------------------------
     readonly property int topGap: 30
     readonly property int keepVisible: 40
-    readonly property int toolsHeight: 22
+    readonly property int toolsHeight: 28
 
     readonly property var numSpec: ({
-        mediaScale:    { min: 50,  max: 120,   def: 70,   step: 5,   unit: "%" },
-        volScale:      { min: 50,  max: 120,   def: 80,   step: 5,   unit: "%" },
-        mediaWidth:    { min: 300, max: 600,   def: 420,  step: 20,  unit: "px" },
-        portraitWidth: { min: 200, max: 400,   def: 260,  step: 20,  unit: "px" },
-        flyoutWidth:   { min: 200, max: 500,   def: 320,  step: 20,  unit: "px" },
-        artSize:       { min: 32,  max: 96,    def: 52,   step: 4,   unit: "px" },
-        cardRadius:    { min: 0,   max: 40,    def: 24,   step: 2,   unit: "px" },
-        barCount:      { min: 4,   max: 64,    def: 24,   step: 2,   unit: "" },
-        barRadius:     { min: 0,   max: 20,    def: 20,   step: 2,   unit: "px", full: true },
-        barSpacing:    { min: 1,   max: 10,    def: 3,    step: 1,   unit: "px" },
-        barHeight:     { min: 10,  max: 240,    def: 20,   step: 2,   unit: "px" },
-        barFps:        { min: 15,  max: 60,    def: 30,   step: 5,   unit: " fps" },
-        mediaTimeout:  { min: 500, max: 15000, def: 3000, step: 500, unit: "s" },
-        volTimeout:    { min: 300, max: 8000,  def: 1200, step: 100, unit: "s" },
-        fadeMs:        { min: 0,   max: 500,   def: 150,  step: 25,  unit: " ms" },
-        volStep:       { min: 1,   max: 20,    def: 5,    step: 1,   unit: "%" },
-        bgOpacity:     { min: 0,  max: 100,   def: Math.max(10, Math.round((Theme.bg.a ?? 1) * 20) * 5),     step: 5, unit: "%" },
-        artOpacity:    { min: 20,  max: 100,   def: Math.max(20, Math.round((Theme.bgAlpha ?? 1) * 20) * 5), step: 5, unit: "%" },
-        barOpacity:    { min: 30,  max: 100,   def: 90,   step: 5,   unit: "%" },
-        barDimOpacity: { min: 0,   max: 60,    def: 30,   step: 5,   unit: "%" }
+        mediaScale:    { min: 20,  max: 200,   def: 70,   step: 2,   unit: "%" },
+        volScale:      { min: 20,  max: 200,   def: 80,   step: 5,   unit: "%" },
+        mediaWidth:    { min: 200, max: 1000,  def: 420,  step: 10,  unit: "px" },
+        portraitWidth: { min: 120, max: 700,   def: 260,  step: 10,  unit: "px" },
+        flyoutWidth:   { min: 120, max: 800,   def: 320,  step: 10,  unit: "px" },
+        artSize:       { min: 16,  max: 200,   def: 52,   step: 4,   unit: "px" },
+        cardRadius:    { min: 0,   max: 80,    def: 24,   step: 2,   unit: "px" },
+        barCount:      { min: 2,   max: 128,   def: 24,   step: 2,   unit: "" },
+        barRadius:     { min: 0,   max: 40,    def: 40,   step: 2,   unit: "px", full: true },
+        barSpacing:    { min: 0,   max: 30,    def: 3,    step: 1,   unit: "px" },
+        barHeight:     { min: 4,   max: 400,   def: 20,   step: 2,   unit: "px" },
+        barFps:        { min: 5,   max: 144,   def: 30,   step: 5,   unit: " fps" },
+        barSensitivity:{ min: 20,  max: 300,   def: 100,  step: 10,  unit: "%" },
+        mediaTimeout:  { min: 250, max: 60000, def: 3000, step: 250, unit: "s" },
+        volTimeout:    { min: 100, max: 30000, def: 1200, step: 100, unit: "s" },
+        fadeMs:        { min: 0,   max: 1500,  def: 150,  step: 25,  unit: " ms" },
+        bgOpacity:     { min: 0,   max: 100,   def: Math.max(10, Math.round((Theme.bg.a ?? 1) * 20) * 5),     step: 5, unit: "%" },
+        artOpacity:    { min: 0,   max: 100,   def: Math.max(20, Math.round((Theme.bgAlpha ?? 1) * 20) * 5), step: 5, unit: "%" },
+        barOpacity:    { min: 0,   max: 100,   def: 90,   step: 5,   unit: "%" },
+        barDimOpacity: { min: 0,   max: 100,   def: 30,   step: 5,   unit: "%" }
     })
     readonly property var numKeys: Object.keys(numSpec)
 
     readonly property var boolDefaults: ({
         showTips: true, showTitle: true, showArtist: true, showBar: true, showVisualizer: true,
         trackChangeOsd: true, showArt: true, showControls: true, musicOnly: true, artistBelow: false,
-        portrait: true, showBorder: false, accentBars: false, scrollVolume: true
+        portrait: true, showBorder: false, accentBars: false
     })
     readonly property var boolKeys: Object.keys(boolDefaults)
     readonly property var posKeys: ["offsetX", "offsetY", "volOffsetX", "volOffsetY"]
@@ -66,9 +66,10 @@ Scope {
     property int artSize: numSpec.artSize.def; property int cardRadius: numSpec.cardRadius.def
     property int barCount: numSpec.barCount.def; property int barRadius: numSpec.barRadius.def
     property int barSpacing: numSpec.barSpacing.def; property int barHeight: numSpec.barHeight.def
-    property int barFps: numSpec.barFps.def; property int mediaTimeout: numSpec.mediaTimeout.def
+    property int barFps: numSpec.barFps.def; property int barSensitivity: numSpec.barSensitivity.def
+    property int mediaTimeout: numSpec.mediaTimeout.def
     property int volTimeout: numSpec.volTimeout.def; property int fadeMs: numSpec.fadeMs.def
-    property int volStep: numSpec.volStep.def; property int bgOpacity: numSpec.bgOpacity.def
+    property int bgOpacity: numSpec.bgOpacity.def
     property int artOpacity: numSpec.artOpacity.def; property int barOpacity: numSpec.barOpacity.def
     property int barDimOpacity: numSpec.barDimOpacity.def
 
@@ -78,7 +79,7 @@ Scope {
     property bool showArt: boolDefaults.showArt; property bool showControls: boolDefaults.showControls
     property bool musicOnly: boolDefaults.musicOnly; property bool artistBelow: boolDefaults.artistBelow
     property bool portrait: boolDefaults.portrait; property bool showBorder: boolDefaults.showBorder
-    property bool accentBars: boolDefaults.accentBars; property bool scrollVolume: boolDefaults.scrollVolume
+    property bool accentBars: boolDefaults.accentBars
 
     readonly property real scaleFactor: (showMedia ? mediaScale : volScale) / 100
     readonly property color cardColor: Qt.rgba(Theme.bg.r, Theme.bg.g, Theme.bg.b, bgOpacity / 100)
@@ -90,6 +91,24 @@ Scope {
         || numKeys.some(k => root[k] !== numSpec[k].def)
         || boolKeys.some(k => root[k] !== boolDefaults[k])
     readonly property string statePath: Quickshell.env("HOME") + "/.config/quickshell/state/mediaosd-state.json"
+
+    // ---- settings menu look / scale -----------------------------------------
+    // Same scale system as the wallpaper picker's menu:
+    //   ui            : screen height / 1080 (resolution independence)
+    //   settingsScale : Theme.settingsScale (user's "settings scale" from hub.json)
+    //   menuUi        : ui * settingsScale, multiplies every size in the settings menu.
+    // menuUi is kept up to date by a Binding inside the settings window (it knows its screen).
+    // Everything below falls back to the picker's defaults if Theme doesn't define it.
+    readonly property real settingsScale: Theme.settingsScale ?? 1
+    property real menuUi: settingsScale
+    readonly property real menuRadius: Theme.radius ?? 20
+    readonly property string menuFont: Theme.fontFamily ?? "JetBrains Mono"
+    readonly property int menuAnimFast: Theme.animFast ?? 120
+    readonly property int menuAnimMed: Theme.animMed ?? 220
+    readonly property int textSizeSection: Theme.textSizeSection ?? 15
+    readonly property int textSizeGroup: Theme.textSizeGroup ?? 12
+    readonly property int textSizeBody: Theme.textSizeBody ?? 11
+    readonly property int textSizeSmall: Theme.textSizeSmall ?? 10
 
     // ---- player detection --------------------------------------------------
     readonly property var musicPlayers: [
@@ -175,11 +194,42 @@ Scope {
         function onMutedChanged() { root.triggerOsd() }
     }
 
-    function nudgeVolume(dy) {
-        if (!scrollVolume || !sink?.audio || dy === 0) return
-        if (muted && dy > 0) sink.audio.muted = false
-        sink.audio.volume = Math.max(0, Math.min(1, sink.audio.volume + (dy > 0 ? 1 : -1) * volStep / 100))
-        hideTimer.restart()
+    // ---- scroll to change volume (same behaviour as the bar) ---------------
+    // Step / max come from the bar's settings file so both stay in sync.
+    property int volStep: 2
+    property int volMax: 100
+    property real wheelAcc: 0
+
+    FileView {
+        path: Quickshell.env("HOME") + "/.config/quickshell/state/bar-state.json"
+        printErrors: false
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                var j = JSON.parse(text())
+                if (typeof j.volStep === "number") root.volStep = j.volStep
+                if (typeof j.volMax === "number") root.volMax = j.volMax
+            } catch (e) {}
+        }
+    }
+
+    function scrollVolume(delta) {
+        if (!sink || !sink.audio) return
+
+        // accumulate so smooth-scroll devices still give exactly one step per notch
+        wheelAcc += delta
+        if (Math.abs(wheelAcc) < 120) return
+        var dir = wheelAcc > 0 ? 1 : -1
+        wheelAcc = 0
+        var step = Math.max(1, volStep)
+        var cur = Math.round(sink.audio.volume * 100)
+        // snap to the step grid (0, 3, 6, 9 ...)
+        var next = dir > 0 ? (Math.floor(cur / step) + 1) * step
+                           : (Math.ceil(cur / step) - 1) * step
+        next = Math.max(0, Math.min(volMax, next))
+        if (dir > 0 && sink.audio.muted) sink.audio.muted = false
+        sink.audio.volume = next / 100
     }
 
     // ---- OSD state ---------------------------------------------------------
@@ -255,11 +305,46 @@ Scope {
     // ---- settings helpers --------------------------------------------------
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, Math.round(v))) }
 
+    // width of one cell when `p` is a multi-column Grid, else the full width
+    function cellW(p) {
+        if (!p) return 0
+        if (p.columns !== undefined && p.columns > 1 && p.columnSpacing !== undefined)
+            return Math.floor((p.width - (p.columns - 1) * p.columnSpacing) / p.columns)
+        return p.width
+    }
+
     function fmtValue(key, v) {
         var s = numSpec[key]
         if (s.unit === "s") return (v / 1000).toFixed(1) + "s"
         if (s.full && v >= s.max) return "full"
         return v + s.unit
+    }
+
+    // ---- keyboard focus helpers (settings window) ---------------------------
+    // Move keyboard focus to the next / previous Tab-focusable item. Wrapping
+    // onto the window's content item (not focusable) is ignored.
+    function focusStep(item, forward) {
+        var n = item.nextItemInFocusChain(forward)
+        if (n && n.activeFocusOnTab)
+            n.forceActiveFocus(forward ? Qt.TabFocusReason : Qt.BacktabFocusReason)
+    }
+
+    // Scroll the enclosing Flickable (if any) so `item` is fully visible,
+    // with `margin` px of breathing room (shows the section header above it).
+    function ensureVisible(item, margin) {
+        var f = item.parent
+        while (f && !(f.contentY !== undefined && f.contentHeight !== undefined))
+            f = f.parent
+        if (!f)
+            return
+        var p = item.mapToItem(f.contentItem, 0, 0)
+        var top = p.y - margin
+        var bottom = p.y + item.height + margin / 2
+        var maxY = Math.max(0, f.contentHeight - f.height)
+        if (top < f.contentY)
+            f.contentY = Math.max(0, top)
+        else if (bottom > f.contentY + f.height)
+            f.contentY = Math.min(maxY, bottom - f.height)
     }
 
     // Only called while dragging; saved offsets are never rewritten by window resizes.
@@ -455,10 +540,6 @@ Scope {
 
                     HoverHandler { id: flyoutHover; enabled: flyout.open }
                     DragArea { anchors.fill: parent; enabled: flyout.open; scene: scene }
-                    WheelHandler {
-                        enabled: flyout.open && root.scrollVolume
-                        onWheel: event => root.nudgeVolume(event.angleDelta.y)
-                    }
 
                     Text {
                         id: icon
@@ -521,10 +602,6 @@ Scope {
 
                     // Declared before the content so buttons stay clickable on top.
                     DragArea { anchors.fill: parent; enabled: mediaPanel.open; scene: scene }
-                    WheelHandler {
-                        enabled: mediaPanel.open && root.scrollVolume
-                        onWheel: event => root.nudgeVolume(event.angleDelta.y)
-                    }
 
                     Column {
                         id: mediaCol
@@ -629,6 +706,8 @@ Scope {
                         }
 
                         // visualizer (played part is brighter)
+                        // Bar heights are the cava level (0-100) times the sensitivity setting,
+                        // clamped to the visualizer height.
                         Item {
                             id: visualizer
                             visible: mediaPanel.barShown
@@ -646,7 +725,9 @@ Scope {
                                     color: root.accentBars ? Theme.accent : Theme.text
                                     opacity: (((index + 0.5) / root.barCount) <= root.progress
                                               ? root.barOpacity : root.barDimOpacity) / 100
-                                    height: Math.max(3, ((root.bars[index] ?? 0) / 100) * visualizer.height)
+                                    height: Math.min(visualizer.height,
+                                                     Math.max(3, ((root.bars[index] ?? 0) / 100)
+                                                                 * (root.barSensitivity / 100) * visualizer.height))
                                     y: visualizer.height - height
                                     Behavior on height { NumberAnimation { duration: 60 } }
                                     Behavior on opacity { NumberAnimation { duration: 200 } }
@@ -710,7 +791,7 @@ Scope {
                     }
                 }
 
-                // ---- tools bar under the card: hint text + pin + settings ----
+                // ---- tools bar under the card: hint text + pin ----
                 Item {
                     id: tools
                     width: win.activeCard.width
@@ -743,37 +824,26 @@ Scope {
                             : "RMB for settings · Drag to move · double-click resets"
                     }
 
+                    // Larger pin button: bigger hit area + glyph, hover highlight,
+                    // always reasonably visible (was a tiny 18px, 30% opacity button).
                     FooterButton {
                         id: pinButton
                         visible: root.showMedia
-                        anchors.right: settingsButton.left
-                        anchors.rightMargin: 8
+                        anchors.right: parent.right
+                        anchors.rightMargin: 6
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 18; height: 18
-                        color: "transparent"
+                        width: 26; height: 26
+                        radius: 8
+                        color: root.pinned ? Theme.alpha(Theme.accent, 0.18)
+                             : hovered ? Theme.alpha(Theme.text, 0.12)
+                             : "transparent"
                         label: "\uDB81\uDC03"
-                        fontSize: 13
+                        fontSize: 17
                         active: root.pinned
-                        opacity: (hovered || root.pinned) ? 1 : 0.3
+                        opacity: (hovered || root.pinned) ? 1 : 0.55
                         onClicked: root.togglePinned()
                         onHoveredChanged: root.hoverTip = hovered
                             ? (root.pinned ? "Unpin (allow auto-hide)" : "Pin open (disable auto-hide)") : ""
-                    }
-
-                    FooterButton {
-                        id: settingsButton
-                        visible: root.showMedia
-                        anchors.right: parent.right
-                        anchors.rightMargin: 8
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 18; height: 18
-                        color: "transparent"
-                        label: "󰒓"
-                        fontSize: 13
-                        active: root.settingsOpen
-                        opacity: (hovered || root.settingsOpen) ? 1 : 0.3
-                        onClicked: root.toggleSettings()
-                        onHoveredChanged: root.hoverTip = hovered ? "Settings" : ""
                     }
                 }
             }
@@ -782,22 +852,39 @@ Scope {
 
     // ---- settings window: only exists while settings are open -------------
     // Fixed size on purpose (content-driven height can leave a blank first frame).
+    // Every size below is multiplied by `u` (= ui * Theme.settingsScale), exactly like the
+    // wallpaper picker's menu, so both menus scale together.
+    //
+    // Keyboard: every toggle, slider and footer button is Tab-focusable (Qt's
+    // normal focus chain, in visual order). Tab / Shift+Tab or Up / Down move
+    // between controls, Left / Right (PgUp / PgDn for bigger steps, Home / End
+    // for min / max) adjust a focused slider, Space / Enter flips a toggle or
+    // presses a button, and the page auto-scrolls to keep the focused control
+    // in view. Esc or C closes the window.
     LazyLoader {
         active: root.settingsOpen
 
         PanelWindow {
+            id: settingsWin
+
+            readonly property real ui: (screen?.height ?? 1080) / 1080
+            readonly property real u: ui * root.settingsScale
+
             color: "transparent"
-            implicitWidth: 420
-            implicitHeight: Math.min(600, (screen?.height ?? 800) * 0.85)
+            implicitWidth: 440 * u
+            implicitHeight: Math.min(600 * u, (screen?.height ?? 800) * 0.85)
             exclusionMode: ExclusionMode.Ignore
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "mediaosd-settings"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
+            // Shares the scale with the reusable components (they read root.menuUi).
+            Binding { target: root; property: "menuUi"; value: settingsWin.u }
+
             Rectangle {
                 anchors.fill: parent
-                radius: 20
+                radius: root.menuRadius * settingsWin.u
                 color: Theme.bg
                 border.width: 1
                 border.color: Theme.alpha(Theme.text, 0.12)
@@ -808,23 +895,61 @@ Scope {
                 focus: true
                 Keys.onEscapePressed: root.closeSettings()
 
+                // Fallback keys, only reached when the focused control did not
+                // handle the key (or nothing is focused yet): scrolling and C.
+                // Tab / Shift+Tab are deliberately NOT handled here so Qt's focus
+                // chain moves between controls.
+                Keys.onPressed: function (event) {
+                    var maxY = Math.max(0, flick.contentHeight - flick.height)
+                    var step = 48 * settingsWin.u
+                    var page = flick.height * 0.9
+                    var dy = 0
+
+                    switch (event.key) {
+                    case Qt.Key_Down:     dy = step;  break
+                    case Qt.Key_Up:       dy = -step; break
+                    case Qt.Key_PageDown: dy = page;  break
+                    case Qt.Key_PageUp:   dy = -page; break
+                    case Qt.Key_Home:     flick.contentY = 0;    event.accepted = true; return
+                    case Qt.Key_End:      flick.contentY = maxY; event.accepted = true; return
+                    case Qt.Key_C:        root.closeSettings();  event.accepted = true; return
+                    default: return   // Tab, Escape etc. are handled elsewhere
+                    }
+                    flick.contentY = Math.max(0, Math.min(maxY, flick.contentY + dy))
+                    event.accepted = true
+                }
+
                 Item {
                     id: head
                     anchors.top: parent.top
                     width: parent.width
-                    height: 60
+                    height: 54 * settingsWin.u
 
-                    Text { x: 20; y: 12; text: "OSD settings"; font.pixelSize: 15; font.bold: true; color: Theme.text }
-                    Text { x: 20; y: 34; text: "Drag to move it. Right-click to open settings"; font.pixelSize: 12; color: Theme.textDim }
+                    Text {
+                        x: 20 * settingsWin.u; y: 10 * settingsWin.u
+                        text: "OSD settings"
+                        font.family: root.menuFont
+                        font.pixelSize: root.textSizeSection * settingsWin.u
+                        font.bold: true
+                        color: Theme.text
+                    }
+                    Text {
+                        x: 20 * settingsWin.u; y: 31 * settingsWin.u
+                        text: "Drag to move · right-click: settings · Tab: navigate"
+                        font.family: root.menuFont
+                        font.pixelSize: root.textSizeSmall * settingsWin.u
+                        color: Theme.textDim
+                    }
                     Text {
                         anchors.right: parent.right
-                        anchors.rightMargin: 20
-                        y: 10
-                        width: 24; height: 24
+                        anchors.rightMargin: 20 * settingsWin.u
+                        y: 10 * settingsWin.u
+                        width: 24 * settingsWin.u; height: 24 * settingsWin.u
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         text: "×"
-                        font.pixelSize: 22
+                        font.family: root.menuFont
+                        font.pixelSize: 22 * settingsWin.u
                         color: closeArea.containsMouse ? Theme.text : Theme.textDim
                         MouseArea { id: closeArea; anchors.fill: parent; hoverEnabled: true; onClicked: root.closeSettings() }
                     }
@@ -833,72 +958,87 @@ Scope {
                 Flickable {
                     id: flick
                     anchors { top: head.bottom; bottom: foot.top; left: parent.left; right: parent.right }
-                    anchors.topMargin: 4
+                    anchors.topMargin: 4 * settingsWin.u
                     contentWidth: width
-                    contentHeight: contentCol.height + 16
+                    contentHeight: contentCol.height + 12 * settingsWin.u
                     clip: true
                     flickableDirection: Flickable.VerticalFlick
                     boundsBehavior: Flickable.StopAtBounds
 
                     Column {
                         id: contentCol
-                        x: 20
-                        width: flick.width - 48
+                        x: 20 * settingsWin.u
+                        width: flick.width - 48 * settingsWin.u
 
                         SectionHeader { text: "Global" }
-                        ToggleRow { key: "showTips"; label: "Tooltips & hints" }
-                        SliderRow { key: "mediaScale"; label: "Media scale" }
-                        SliderRow { key: "volScale"; label: "Volume scale" }
-                        SliderRow { key: "fadeMs"; label: "Animation speed" }
+                        Grid {
+                            width: parent.width; columns: 2; columnSpacing: 18 * settingsWin.u
+                            ToggleRow { key: "showTips"; label: "Tooltips" }
+                            SliderRow { key: "fadeMs"; label: "Animation" }
+                            SliderRow { key: "mediaScale"; label: "Media scale" }
+                            SliderRow { key: "volScale"; label: "Volume scale" }
+                        }
 
                         SectionHeader { text: "Content" }
-                        ToggleRow { key: "showArt"; label: "Album art" }
-                        ToggleRow { key: "showTitle"; label: "Title" }
-                        ToggleRow { key: "showArtist"; label: "Artist" }
-                        ToggleRow { key: "showBar"; label: "Visualizer & progress bar" }
-                        ToggleRow { key: "showVisualizer"; label: "Visualizer"; enabled: root.showBar }
-                        ToggleRow { key: "showControls"; label: "Playback buttons" }
+                        Grid {
+                            width: parent.width; columns: 2; columnSpacing: 18 * settingsWin.u
+                            ToggleRow { key: "showArt"; label: "Album art" }
+                            ToggleRow { key: "showTitle"; label: "Title" }
+                            ToggleRow { key: "showArtist"; label: "Artist" }
+                            ToggleRow { key: "showControls"; label: "Controls" }
+                            ToggleRow { key: "showBar"; label: "Visualizer & bar" }
+                            ToggleRow { key: "showVisualizer"; label: "Visualizer"; enabled: root.showBar }
+                        }
 
                         SectionHeader { text: "Layout" }
-                        ToggleRow { key: "portrait"; label: "Portrait layout" }
-                        ToggleRow {
-                            key: "artistBelow"
-                            label: "Artist below title"
-                            checked: root.artistBelow || root.portrait
-                            enabled: !root.portrait && root.showTitle && root.showArtist
+                        Grid {
+                            width: parent.width; columns: 2; columnSpacing: 18 * settingsWin.u
+                            ToggleRow { key: "portrait"; label: "Portrait" }
+                            ToggleRow {
+                                key: "artistBelow"
+                                label: "Artist below"
+                                checked: root.artistBelow || root.portrait
+                                enabled: !root.portrait && root.showTitle && root.showArtist
+                            }
+                            ToggleRow { key: "showBorder"; label: "Border" }
+                            SliderRow { key: root.portrait ? "portraitWidth" : "mediaWidth"; label: "Width" }
+                            SliderRow { key: "artSize"; label: "Art size"; enabled: root.showArt && !root.portrait }
+                            SliderRow { key: "cardRadius"; label: "Corner radius" }
                         }
-                        SliderRow { key: root.portrait ? "portraitWidth" : "mediaWidth"; label: "Width" }
-                        SliderRow { key: "artSize"; label: "Art size"; enabled: root.showArt && !root.portrait }
-                        SliderRow { key: "cardRadius"; label: "Corner radius" }
-                        ToggleRow { key: "showBorder"; label: "Border" }
 
                         SectionHeader { text: "Visualizer" }
-                        SliderRow { key: "barCount"; label: "Bars"; enabled: root.showBar && root.showVisualizer }
-                        SliderRow { key: "barSpacing"; label: "Spacing"; enabled: root.showBar && root.showVisualizer }
-                        SliderRow { key: "barHeight"; label: "Height"; enabled: root.showBar }
-                        SliderRow { key: "barRadius"; label: "Round"; enabled: root.showBar }
-                        SliderRow { key: "barFps"; label: "Frame rate"; enabled: root.showBar && root.showVisualizer }
-                        ToggleRow { key: "accentBars"; label: "Accent colour"; enabled: root.showBar }
+                        Grid {
+                            width: parent.width; columns: 2; columnSpacing: 18 * settingsWin.u
+                            SliderRow { key: "barCount"; label: "Bars"; enabled: root.showBar && root.showVisualizer }
+                            SliderRow { key: "barSpacing"; label: "Spacing"; enabled: root.showBar && root.showVisualizer }
+                            SliderRow { key: "barHeight"; label: "Height"; enabled: root.showBar }
+                            SliderRow { key: "barRadius"; label: "Round"; enabled: root.showBar }
+                            SliderRow { key: "barFps"; label: "Frame rate"; enabled: root.showBar && root.showVisualizer }
+                            SliderRow { key: "barSensitivity"; label: "Sensitivity"; enabled: root.showBar && root.showVisualizer }
+                            ToggleRow { key: "accentBars"; label: "Accent colour"; enabled: root.showBar }
+                        }
 
                         SectionHeader { text: "Opacity" }
-                        SliderRow { key: "bgOpacity"; label: "Background" }
-                        SliderRow { key: "artOpacity"; label: "Album art"; enabled: root.showArt }
-                        SliderRow { key: "barOpacity"; label: "Bars / progress (played)"; enabled: root.showBar }
-                        SliderRow { key: "barDimOpacity"; label: "Bars / progress (remaining)"; enabled: root.showBar }
+                        Grid {
+                            width: parent.width; columns: 2; columnSpacing: 18 * settingsWin.u
+                            SliderRow { key: "bgOpacity"; label: "Background" }
+                            SliderRow { key: "artOpacity"; label: "Album art"; enabled: root.showArt }
+                            SliderRow { key: "barOpacity"; label: "Bars played"; enabled: root.showBar }
+                            SliderRow { key: "barDimOpacity"; label: "Bars remaining"; enabled: root.showBar }
+                        }
 
                         SectionHeader { text: "Behavior" }
-                        ToggleRow { key: "musicOnly"; label: "Music players only" }
-                        ToggleRow { key: "trackChangeOsd"; label: "Pop up on track change" }
-                        SliderRow { key: "mediaTimeout"; label: "Media hide after" }
-                        ToggleRow { key: "scrollVolume"; label: "Scroll to change volume" }
-                        SliderRow { key: "volStep"; label: "Scroll step"; enabled: root.scrollVolume }
-
-                        SectionHeader { text: "Volume popup" }
-                        SliderRow { key: "volTimeout"; label: "Volume hide after" }
+                        Grid {
+                            width: parent.width; columns: 2; columnSpacing: 18 * settingsWin.u
+                            ToggleRow { key: "musicOnly"; label: "Music only" }
+                            ToggleRow { key: "trackChangeOsd"; label: "On track change" }
+                            SliderRow { key: "mediaTimeout"; label: "Media hide after" }
+                            SliderRow { key: "volTimeout"; label: "Volume hide after" }
+                        }
 
                         SectionHeader { text: "Position" }
                         Row {
-                            spacing: 8
+                            spacing: 8 * settingsWin.u
                             ActionButton { label: "Reset media position"; enabled: root.mediaMoved; onClicked: root.resetPos(true) }
                             ActionButton { label: "Reset volume position"; enabled: root.volMoved; onClicked: root.resetPos(false) }
                         }
@@ -908,21 +1048,21 @@ Scope {
                 // Scrollbar lives outside the Flickable content so it doesn't scroll away.
                 Rectangle {
                     visible: flick.contentHeight > flick.height
-                    x: flick.x + flick.width - 14
+                    x: flick.x + flick.width - 14 * settingsWin.u
                     y: flick.y
-                    width: 4
+                    width: 4 * settingsWin.u
                     height: flick.height
-                    radius: 2
+                    radius: 2 * settingsWin.u
                     color: Theme.alpha(Theme.text, 0.08)
                 }
 
                 Rectangle {
                     id: sbHandle
                     visible: flick.contentHeight > flick.height
-                    x: flick.x + flick.width - 14
-                    width: 4
-                    radius: 2
-                    height: Math.max(24, flick.height * flick.visibleArea.heightRatio)
+                    x: flick.x + flick.width - 14 * settingsWin.u
+                    width: 4 * settingsWin.u
+                    radius: 2 * settingsWin.u
+                    height: Math.max(24 * settingsWin.u, flick.height * flick.visibleArea.heightRatio)
                     y: flick.y + flick.visibleArea.yPosition * flick.height
                     color: Theme.text
                     opacity: (sbArea.containsMouse || sbArea.pressed || flick.moving) ? 0.7 : 0.3
@@ -931,7 +1071,7 @@ Scope {
                     MouseArea {
                         id: sbArea
                         anchors.fill: parent
-                        anchors.margins: -5
+                        anchors.margins: -5 * settingsWin.u
                         hoverEnabled: true
 
                         // Drive contentY instead of drag.target (which would break the y binding).
@@ -954,12 +1094,12 @@ Scope {
                     id: foot
                     anchors.bottom: parent.bottom
                     width: parent.width
-                    height: 58
+                    height: 50 * settingsWin.u
 
                     Rectangle { width: parent.width; height: 1; color: Theme.alpha(Theme.text, 0.08) }
 
                     ActionButton {
-                        x: 20
+                        x: 20 * settingsWin.u
                         anchors.verticalCenter: parent.verticalCenter
                         label: "Reset all"
                         enabled: root.modified
@@ -968,7 +1108,7 @@ Scope {
 
                     ActionButton {
                         anchors.right: parent.right
-                        anchors.rightMargin: 20
+                        anchors.rightMargin: 20 * settingsWin.u
                         anchors.verticalCenter: parent.verticalCenter
                         label: "Done"
                         primary: true
@@ -1001,6 +1141,13 @@ Scope {
 
         Behavior on opacity { NumberAnimation { duration: host.fadeMs } }
         Behavior on scale { NumberAnimation { duration: host.fadeMs; easing.type: Easing.OutCubic } }
+
+        // scroll anywhere on the card to change the volume
+        WheelHandler {
+            enabled: parent.open
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: e => host.scrollVolume(e.angleDelta.y)
+        }
     }
 
     component FooterButton: Rectangle {
@@ -1014,6 +1161,7 @@ Scope {
         width: 16; height: 16; radius: 6
         color: Theme.bg
         Behavior on opacity { NumberAnimation { duration: 120 } }
+        Behavior on color { ColorAnimation { duration: 120 } }
 
         Text {
             anchors.centerIn: parent
@@ -1024,7 +1172,14 @@ Scope {
             color: fb.active ? Theme.accent : (fb.hovered ? Theme.text : Theme.textDim)
         }
 
-        MouseArea { id: fbArea; anchors.fill: parent; hoverEnabled: true; onClicked: fb.clicked() }
+        MouseArea {
+            id: fbArea
+            anchors.fill: parent
+            anchors.margins: -4          // slightly larger click target than the visible button
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: fb.clicked()
+        }
     }
 
     component GlyphButton: Text {
@@ -1075,43 +1230,85 @@ Scope {
         onDoubleClicked: mouse => { if (mouse.button === Qt.LeftButton) host.resetPos(host.showMedia) }
     }
 
+    // ---- settings-menu components (all sizes scale with host.menuUi) --------
+    // ActionButton, ToggleRow and SliderRow are Tab-focusable (activeFocusOnTab)
+    // and draw an accent ring while they hold keyboard focus. Disabled controls
+    // are skipped by Tab automatically.
     component ActionButton: Rectangle {
         id: ab
+        property var host: root
         property string label: ""
         property bool primary: false
+        readonly property real u: host.menuUi
         signal clicked()
 
-        implicitWidth: abText.implicitWidth + 28
+        activeFocusOnTab: true
+
+        implicitWidth: abText.implicitWidth + 28 * u
         width: implicitWidth
-        height: 30
-        radius: 15
+        height: 30 * u
+        radius: Math.min(height / 2, ab.host.menuRadius * u)
         opacity: enabled ? 1 : 0.4
-        color: primary ? Theme.accent : Theme.alpha(Theme.text, abArea.containsMouse ? 0.18 : 0.1)
-        Behavior on color { ColorAnimation { duration: 120 } }
+        color: primary ? Theme.accent : Theme.alpha(Theme.text, abArea.containsMouse && enabled ? 0.18 : 0.1)
+        border.width: ab.activeFocus ? Math.max(1, Math.round(2 * u)) : 0
+        border.color: ab.primary ? Theme.text : Theme.accent
+        Behavior on color { ColorAnimation { duration: ab.host.menuAnimFast } }
+
+        onActiveFocusChanged: if (activeFocus) ab.host.ensureVisible(ab, 32 * u)
+
+        Keys.onPressed: function (event) {
+            if (event.key === Qt.Key_Space
+                    || event.key === Qt.Key_Return
+                    || event.key === Qt.Key_Enter) {
+                if (ab.enabled)
+                    ab.clicked()
+                event.accepted = true
+            } else if (event.key === Qt.Key_Left || event.key === Qt.Key_Up) {
+                ab.host.focusStep(ab, false)
+                event.accepted = true
+            } else if (event.key === Qt.Key_Right || event.key === Qt.Key_Down) {
+                ab.host.focusStep(ab, true)
+                event.accepted = true
+            }
+        }
 
         Text {
             id: abText
             anchors.centerIn: parent
             text: ab.label
-            font.pixelSize: 11
+            font.family: ab.host.menuFont
+            font.pixelSize: ab.host.textSizeBody * ab.u
             font.bold: true
             color: ab.primary ? Theme.bg : Theme.text
         }
 
-        MouseArea { id: abArea; anchors.fill: parent; hoverEnabled: true; onClicked: ab.clicked() }
+        MouseArea {
+            id: abArea
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: ab.enabled
+            onClicked: {
+                ab.forceActiveFocus()
+                ab.clicked()
+            }
+        }
     }
 
     component SectionHeader: Item {
+        id: sh
+        property var host: root
         property string text: ""
+        readonly property real u: host.menuUi
         width: parent?.width ?? 0
-        height: 32
+        height: 26 * u
 
         Text {
             anchors.left: parent.left
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: 4
-            text: parent.text
-            font.pixelSize: 10
+            anchors.bottomMargin: 3 * sh.u
+            text: sh.text
+            font.family: sh.host.menuFont
+            font.pixelSize: sh.host.textSizeSmall * sh.u
             font.bold: true
             font.letterSpacing: 1.2
             font.capitalization: Font.AllUppercase
@@ -1119,33 +1316,58 @@ Scope {
         }
     }
 
+    // Keyboard: Space / Enter toggles, Up / Down move focus.
     component ToggleRow: Item {
         id: tr
         property var host: root
         property string key: ""
         property string label: ""
         property bool checked: host[key]
+        readonly property real u: host.menuUi
 
-        width: parent?.width ?? 0
-        height: 34
+        activeFocusOnTab: true
+
+        width: host.cellW(parent)
+        height: 28 * u
         opacity: enabled ? 1 : 0.4
+
+        onActiveFocusChanged: if (activeFocus) tr.host.ensureVisible(tr, 32 * u)
+
+        Keys.onPressed: function (event) {
+            if (event.key === Qt.Key_Space
+                    || event.key === Qt.Key_Return
+                    || event.key === Qt.Key_Enter) {
+                tr.host.toggleSetting(tr.key)
+                event.accepted = true
+            } else if (event.key === Qt.Key_Down) {
+                tr.host.focusStep(tr, true)
+                event.accepted = true
+            } else if (event.key === Qt.Key_Up) {
+                tr.host.focusStep(tr, false)
+                event.accepted = true
+            }
+        }
 
         Rectangle {
             anchors.fill: parent
-            anchors.leftMargin: -8
-            anchors.rightMargin: -8
-            radius: 8
-            color: trArea.containsMouse && tr.enabled ? Theme.alpha(Theme.text, 0.06) : "transparent"
+            anchors.leftMargin: -6 * tr.u
+            anchors.rightMargin: -6 * tr.u
+            radius: Math.min(8 * tr.u, tr.host.menuRadius * tr.u)
+            color: (trArea.containsMouse || tr.activeFocus) && tr.enabled
+                ? Theme.alpha(Theme.text, 0.06) : "transparent"
+            border.width: tr.activeFocus ? Math.max(1, Math.round(tr.u)) : 0
+            border.color: Theme.accent
         }
 
         Text {
             anchors.left: parent.left
             anchors.right: sw.left
-            anchors.rightMargin: 12
-            y: 9
+            anchors.rightMargin: 8 * tr.u
+            anchors.verticalCenter: parent.verticalCenter
             text: tr.label
             elide: Text.ElideRight
-            font.pixelSize: 12
+            font.family: tr.host.menuFont
+            font.pixelSize: tr.host.textSizeGroup * tr.u
             font.bold: true
             color: Theme.text
         }
@@ -1153,56 +1375,120 @@ Scope {
         Rectangle {
             id: sw
             anchors.right: parent.right
-            y: 7
-            width: 36; height: 20; radius: 10
+            anchors.verticalCenter: parent.verticalCenter
+            width: 32 * tr.u; height: 18 * tr.u; radius: height / 2
             color: tr.checked ? Theme.accent : "transparent"
             border.width: 1
             border.color: tr.checked ? Theme.accent : Theme.alpha(Theme.text, 0.3)
-            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on color { ColorAnimation { duration: tr.host.menuAnimMed } }
 
             Rectangle {
-                width: 14; height: 14; radius: 7
+                width: 12 * tr.u; height: 12 * tr.u; radius: width / 2
                 anchors.verticalCenter: parent.verticalCenter
-                x: tr.checked ? parent.width - width - 3 : 3
+                x: tr.checked ? parent.width - width - 3 * tr.u : 3 * tr.u
                 color: tr.checked ? Theme.bg : Theme.text
-                Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                Behavior on x { NumberAnimation { duration: tr.host.menuAnimMed; easing.type: Easing.OutCubic } }
             }
         }
 
-        MouseArea { id: trArea; anchors.fill: parent; hoverEnabled: true; onClicked: tr.host.toggleSetting(tr.key) }
+        MouseArea {
+            id: trArea
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: tr.enabled
+            onClicked: {
+                tr.forceActiveFocus()
+                tr.host.toggleSetting(tr.key)
+            }
+        }
     }
 
     // Minimal slider bound to a numSpec entry on the host; saves on release.
+    // Keyboard: Left / Right = one step, PgUp / PgDn = five steps,
+    // Home / End = min / max, Up / Down move focus.
     component SliderRow: Item {
         id: sr
         property var host: root
         property string key: ""
         property string label: ""
+        readonly property real u: host.menuUi
 
         readonly property var spec: host.numSpec[key]
         readonly property real ratio: Math.max(0, Math.min(1, (host[key] - spec.min) / (spec.max - spec.min)))
 
-        width: parent?.width ?? 0
-        height: 44
+        activeFocusOnTab: true
+
+        width: host.cellW(parent)
+        height: 38 * u
         opacity: enabled ? 1 : 0.4
 
-        Text { anchors.left: parent.left; y: 6; text: sr.label; font.pixelSize: 12; font.bold: true; color: Theme.text }
-        Text { anchors.right: parent.right; y: 6; text: sr.host.fmtValue(sr.key, sr.host[sr.key]); font.pixelSize: 11; color: Theme.textDim }
+        onActiveFocusChanged: if (activeFocus) sr.host.ensureVisible(sr, 32 * u)
+
+        function nudge(delta) {
+            sr.host.setNumber(sr.key, sr.host[sr.key] + delta)
+            sr.host.saveState()
+        }
+
+        Keys.onPressed: function (event) {
+            var st = sr.spec.step
+            switch (event.key) {
+            case Qt.Key_Left:     sr.nudge(-st);     break
+            case Qt.Key_Right:    sr.nudge(st);      break
+            case Qt.Key_PageDown: sr.nudge(-st * 5); break
+            case Qt.Key_PageUp:   sr.nudge(st * 5);  break
+            case Qt.Key_Home:
+                sr.host.setNumber(sr.key, sr.spec.min); sr.host.saveState(); break
+            case Qt.Key_End:
+                sr.host.setNumber(sr.key, sr.spec.max); sr.host.saveState(); break
+            case Qt.Key_Down:     sr.host.focusStep(sr, true);  break
+            case Qt.Key_Up:       sr.host.focusStep(sr, false); break
+            default: return
+            }
+            event.accepted = true
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -3 * sr.u
+            radius: Math.min(8 * sr.u, sr.host.menuRadius * sr.u)
+            color: "transparent"
+            visible: sr.activeFocus
+            border.width: Math.max(1, Math.round(sr.u))
+            border.color: Theme.accent
+        }
+
+        Text {
+            anchors.left: parent.left; anchors.right: srValue.left; anchors.rightMargin: 6 * sr.u; y: 4 * sr.u
+            elide: Text.ElideRight
+            text: sr.label
+            font.family: sr.host.menuFont
+            font.pixelSize: sr.host.textSizeGroup * sr.u
+            font.bold: true
+            color: Theme.text
+        }
+        Text {
+            id: srValue
+            anchors.right: parent.right; y: 5 * sr.u
+            text: sr.host.fmtValue(sr.key, sr.host[sr.key])
+            font.family: sr.host.menuFont
+            font.pixelSize: sr.host.textSizeBody * sr.u
+            color: Theme.textDim
+        }
 
         Rectangle {
             id: track
             anchors.left: parent.left
             anchors.right: parent.right
-            y: 30
-            height: 4
-            radius: 2
+            y: 27 * sr.u
+            height: 4 * sr.u
+            radius: height / 2
             color: Theme.alpha(Theme.text, 0.15)
 
-            Rectangle { width: knob.x + knob.width / 2; height: parent.height; radius: 2; color: Theme.accent }
+            Rectangle { width: knob.x + knob.width / 2; height: parent.height; radius: parent.radius; color: Theme.accent }
 
             Rectangle {
                 id: knob
-                width: 14; height: 14; radius: 7
+                width: 14 * sr.u; height: 14 * sr.u; radius: width / 2
                 anchors.verticalCenter: parent.verticalCenter
                 x: sr.ratio * (track.width - width)
                 color: Theme.text
@@ -1211,7 +1497,7 @@ Scope {
 
         MouseArea {
             anchors.fill: parent
-            anchors.topMargin: 20
+            anchors.topMargin: 18 * sr.u
             preventStealing: true
             enabled: sr.enabled
 
@@ -1222,7 +1508,10 @@ Scope {
                 sr.host.setNumber(sr.key, s.min + Math.round(r * (s.max - s.min) / s.step) * s.step)
             }
 
-            onPressed: mouse => apply(mouse.x)
+            onPressed: mouse => {
+                sr.forceActiveFocus()
+                apply(mouse.x)
+            }
             onPositionChanged: mouse => { if (pressed) apply(mouse.x) }
             onReleased: sr.host.saveState()
         }

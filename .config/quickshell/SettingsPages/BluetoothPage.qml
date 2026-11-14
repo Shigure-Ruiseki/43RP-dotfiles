@@ -7,71 +7,28 @@ import "../"
 Item {
     id: page
 
+    // ── Config ────────────────────────────────────────────────
+    readonly property string mono: "JetBrainsMono Nerd Font"
+    readonly property int rightMargin: 10
+
+    // ── State ─────────────────────────────────────────────────
     readonly property BluetoothAdapter adapter: Bluetooth.defaultAdapter
     readonly property bool powered: adapter ? adapter.enabled : false
     readonly property bool scanning: adapter ? adapter.discovering : false
     property string statusText: ""
-    property real marginLeft: 0
-    property real marginRight: 10
-    property real marginTop: 0
-    property real marginBottom: 0
 
-    // ---- Persisted power state -------------------------------------------
-    // NOTE: if this page is only instantiated when the panel is opened,
-    // move this block (FileView + restorePower) into an always-loaded place
-    // such as your BluetoothState singleton so it runs at shell startup.
-    property bool powerRestored: false
+    // Nerd Font glyphs
+    readonly property string icRefresh: "\uf021"
+    readonly property string icBluetooth: "\uf294"
+    readonly property string icScan: "\uf1eb"
 
-    FileView {
-        id: stateFile
-        path: Quickshell.env("HOME") + "/.local/state/quickshell-bluetooth-power"
-        blockLoading: true
-        printErrors: false
-    }
+    // Power state (saved/restored/toggled) lives in BluetoothState so the
+    // quick actions menu and this page share one code path.
 
-    function savedPowerState() {
-        try {
-            return (stateFile.text() || "").trim()
-        } catch (e) {
-            return ""   // file doesn't exist yet
-        }
-    }
-
-    function savePowerState(state) {
-        try {
-            stateFile.setText(state)
-        } catch (e) {
-            console.warn("Could not save bluetooth state:", e)
-        }
-    }
-
-    function restorePower() {
-        if (page.powerRestored || !page.adapter)
-            return
-        page.powerRestored = true
-
-        var want = savedPowerState()
-        if (want === "off") {
-            BluetoothState.reconnectPaused = true
-            page.adapter.enabled = false
-        } else if (want === "on") {
-            BluetoothState.reconnectPaused = false
-            page.adapter.enabled = true
-        }
-    }
-
-    onAdapterChanged: restorePower()
-    // ----------------------------------------------------------------------
-
+    // ── Helpers ───────────────────────────────────────────────
     function setStatus(text) {
         page.statusText = text
         statusTimer.restart()
-    }
-
-    Timer {
-        id: statusTimer
-        interval: 3000
-        onTriggered: page.statusText = ""
     }
 
     function setDiscovering(on) {
@@ -80,35 +37,17 @@ Item {
         page.adapter.discovering = on
     }
 
-    function togglePower() {
-        if (!page.adapter)
+    // Restart discovery: stop, then start again after a short pause.
+    function rescan() {
+        if (!page.adapter || !page.powered || rescanTimer.running)
             return
-
-        if (page.adapter.enabled) {
-            savePowerState("off")
-            BluetoothState.reconnectPaused = true
-            setDiscovering(false)
-
-            var devs = BluetoothState.deviceList()
-            for (var i = 0; i < devs.length; i++) {
-                var s = devs[i].state
-                if (s === BluetoothDeviceState.Connected || s === BluetoothDeviceState.Connecting)
-                    devs[i].disconnect()
-            }
-
-            powerOffTimer.restart()
-            return
-        }
-
-        savePowerState("on")
-        BluetoothState.reconnectPaused = false
-        page.adapter.enabled = true
+        page.adapter.discovering = false
+        setStatus("Refreshing devices...")
+        rescanTimer.restart()
     }
 
-    Timer {
-        id: powerOffTimer
-        interval: 800
-        onTriggered: if (page.adapter) page.adapter.enabled = false
+    function togglePower() {
+        BluetoothState.togglePower()
     }
 
     function deviceAction(dev) {
@@ -134,8 +73,9 @@ Item {
         }
 
         setDiscovering(false)
-        dev.trusted = true
         setStatus("Connecting to " + name + "...")
+        delete BluetoothState.reconnectBackoff[dev.address]   // manual attempt resets auto-retry
+        dev.trusted = true
         dev.connect()
     }
 
@@ -169,10 +109,202 @@ Item {
         }
     }
 
+    function deviceSubtitle(dev) {
+        var parts = [dev.address]
+        if (dev.state === BluetoothDeviceState.Connected) parts.push("connected")
+        else if (dev.paired) parts.push("paired")
+        return parts.join("  •  ")
+    }
+
+    // Hairline frame with accent corner brackets (same look as SystemPage)
+    function drawFrame(ctx, active) {
+        var w = ctx.canvas.width
+        var h = ctx.canvas.height
+        var L = 12
+        ctx.clearRect(0, 0, w, h)
+
+        ctx.globalAlpha = 0.35
+        ctx.strokeStyle = Theme.border
+        ctx.lineWidth = 1
+        ctx.strokeRect(0.5, 0.5, w - 1, h - 1)
+
+        ctx.globalAlpha = active ? 0.9 : 0.5
+        ctx.strokeStyle = active ? Theme.accent : Theme.textFaint
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        ctx.moveTo(0.75, L); ctx.lineTo(0.75, 0.75); ctx.lineTo(L, 0.75)
+        ctx.moveTo(w - L, 0.75); ctx.lineTo(w - 0.75, 0.75); ctx.lineTo(w - 0.75, L)
+        ctx.moveTo(w - 0.75, h - L); ctx.lineTo(w - 0.75, h - 0.75); ctx.lineTo(w - L, h - 0.75)
+        ctx.moveTo(L, h - 0.75); ctx.lineTo(0.75, h - 0.75); ctx.lineTo(0.75, h - L)
+        ctx.stroke()
+        ctx.globalAlpha = 1
+    }
+
+    // ── Components ────────────────────────────────────────────
+    // Painted only on size / state change, never per frame.
+    component Frame: Canvas {
+        property bool active: true
+        anchors.fill: parent
+        onPaint: page.drawFrame(getContext("2d"), active)
+        onActiveChanged: requestPaint()
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+    }
+
+    // Small text button: dim by default, accent on hover.
+    component TextButton: Item {
+        id: btn
+        property string text: ""
+        property color baseColor: Theme.textDim
+        property color hoverColor: Theme.accent
+        property bool clickable: true
+        signal clicked()
+
+        implicitWidth: label.implicitWidth
+        implicitHeight: label.implicitHeight
+        opacity: clickable ? 1.0 : 0.5
+
+        Text {
+            id: label
+            text: btn.text
+            color: area.containsMouse && btn.clickable ? btn.hoverColor : btn.baseColor
+            font.family: page.mono
+            font.pixelSize: Theme.textSizeSmall
+            font.letterSpacing: 2
+        }
+
+        MouseArea {
+            id: area
+            anchors.fill: parent
+            anchors.margins: -6
+            hoverEnabled: true
+            enabled: btn.clickable
+            cursorShape: Qt.PointingHandCursor
+            onClicked: btn.clicked()
+        }
+    }
+
+    // Header layout:  LABEL (left)  ·  info (next to it)  ·  badges (right)
+    component SectionHeader: Item {
+        id: head
+        property string label: ""
+        property string info: ""
+        property var badges: []
+        width: parent.width
+        height: 24
+
+        Text {
+            id: labelText
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: head.label
+            color: Theme.textDim
+            font.family: page.mono
+            font.pixelSize: Theme.textSizeGroup
+            font.letterSpacing: 2
+        }
+
+        Text {
+            anchors.left: labelText.right
+            anchors.leftMargin: 20
+            anchors.verticalCenter: parent.verticalCenter
+            // never overlap the badges on the right
+            width: Math.max(0, Math.min(implicitWidth,
+                head.width - labelText.implicitWidth - badgeRow.implicitWidth - 40))
+            text: head.info
+            color: Theme.text
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.textSizeGroup
+            elide: Text.ElideRight
+        }
+
+        Row {
+            id: badgeRow
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 20
+
+            Repeater {
+                model: head.badges
+                Text {
+                    text: modelData
+                    color: Theme.text
+                    font.family: page.mono
+                    font.pixelSize: Theme.textSizeGroup
+                }
+            }
+        }
+    }
+
+    // Centered placeholder (no adapter / off / scanning)
+    component EmptyState: Item {
+        id: empty
+        property string icon: ""
+        property string title: ""
+        property string hint: ""
+        width: parent.width
+        height: 110
+
+        Column {
+            anchors.centerIn: parent
+            spacing: 8
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: empty.icon
+                color: Theme.textDim
+                font.family: Theme.iconFont
+                font.pixelSize: 24
+                visible: empty.icon !== ""
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: empty.title
+                color: Theme.textDim
+                font.family: page.mono
+                font.pixelSize: Theme.textSizeGroup
+                font.letterSpacing: 2
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: empty.hint
+                color: Theme.textFaint
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.textSizeSmall
+                visible: empty.hint !== ""
+            }
+        }
+    }
+
+    // ── Timers ────────────────────────────────────────────────
+    Timer {
+        id: statusTimer
+        interval: 3000
+        onTriggered: page.statusText = ""
+    }
+
+    Timer {
+        id: rescanTimer
+        interval: 400
+        onTriggered: page.setDiscovering(true)
+    }
+
+    // Keeps discovery alive only while the page is visible and powered.
+    Timer {
+        id: discoveryRetryTimer
+        interval: 1500
+        repeat: true
+        running: page.visible && page.powered && BluetoothState.wantPower !== "off"
+        onTriggered: {
+            if (page.adapter && page.powered && !page.adapter.discovering && !rescanTimer.running)
+                page.adapter.discovering = true
+        }
+    }
+
+    // ── Discovery lifecycle ───────────────────────────────────
     onVisibleChanged: setDiscovering(page.visible && page.powered)
     onPoweredChanged: setDiscovering(page.visible && page.powered)
     Component.onCompleted: {
-        restorePower()
         if (page.visible && page.powered) setDiscovering(true)
     }
     Component.onDestruction: setDiscovering(false)
@@ -184,166 +316,183 @@ Item {
         }
     }
 
-    Timer {
-        id: discoveryRetryTimer
-        interval: 1500
-        repeat: true
-        running: page.visible && page.powered && !powerOffTimer.running
-        onTriggered: {
-            if (page.adapter && page.powered && !page.adapter.discovering)
-                page.adapter.discovering = true
-        }
-    }
-
-    Column {
+    // ── UI ────────────────────────────────────────────────────
+    Flickable {
+        id: scrollArea
         anchors.fill: parent
-        anchors.leftMargin: page.marginLeft; anchors.rightMargin: page.marginRight
-        anchors.topMargin: page.marginTop; anchors.bottomMargin: page.marginBottom
-        spacing: 14
+        clip: true
+        contentWidth: width
+        contentHeight: contentColumn.implicitHeight
+        boundsBehavior: Flickable.StopAtBounds
 
-        Text {
-            text: "BLUETOOTH"; color: Theme.text
-            font.family: Theme.fontFamily; font.pixelSize: Theme.textSizeTitle; font.letterSpacing: 3
-        }
-
-        Rectangle { width: parent.width; height: 1; color: Theme.border }
-
-        Rectangle {
-            id: bluetoothToggle
-            width: parent.width
-            height: 36
-            radius: Theme.radius
-            color: page.powered
-                ? Theme.alpha(Theme.accent, 0.1)
-                : Theme.alpha(Theme.textFaint, 0.15)
-            border.width: 1
-            border.color: page.powered ? Theme.accent : Theme.textFaint
-
-            Text {
-                anchors.centerIn: parent
-                text: page.powered ? "BLUETOOTH ON" : "BLUETOOTH OFF"
-                color: page.powered ? Theme.accent : Theme.textFaint
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.textSizeSmall
-                font.bold: true
-                font.letterSpacing: 1
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: page.togglePower()
+        WheelHandler {
+            onWheel: function(event) {
+                var maxY = Math.max(0, scrollArea.contentHeight - scrollArea.height)
+                scrollArea.contentY = Math.max(0, Math.min(maxY, scrollArea.contentY - event.angleDelta.y))
+                event.accepted = true
             }
         }
 
-        Text {
-            width: parent.width
-            visible: page.statusText !== ""
-            text: page.statusText
-            color: Theme.accent
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.textSizeSmall
-            horizontalAlignment: Text.AlignHCenter
-        }
+        Column {
+            id: contentColumn
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.rightMargin: page.rightMargin
+            spacing: 14
 
-        Flickable {
-            id: flick
-            width: parent.width
-            height: parent.height - y
-            clip: true
-            contentWidth: width
-            contentHeight: list.height
-            boundsBehavior: Flickable.StopAtBounds
+            // top bar: title (left) + status (right), scrolls away with the content
+            Item {
+                width: parent.width
+                height: titleText.implicitHeight
+
+                Text {
+                    id: titleText
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "BLUETOOTH"
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.textSizeTitle
+                    font.letterSpacing: 3
+                }
+
+                Text {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: page.statusText
+                    color: Theme.accent
+                    font.family: page.mono
+                    font.pixelSize: Theme.textSizeSmall
+                    font.letterSpacing: 1
+                    elide: Text.ElideLeft
+                    width: Math.min(implicitWidth, parent.width - titleText.implicitWidth - 20)
+                }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: Theme.border
+            }
+
+            // ── Adapter block ────────────────────────────────
+            Column {
+                width: parent.width
+                spacing: 10
+
+                Item {
+                    width: parent.width
+                    height: 60
+
+                    Frame { active: page.powered }
+
+                    Row {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 12
+
+                        // power toggle
+                        Rectangle {
+                            id: powerBtn
+                            width: parent.width - rescanBtn.width - parent.spacing
+                            height: parent.height
+                            radius: Theme.radius
+                            color: page.powered
+                                ? Theme.alpha(Theme.accent, 0.1)
+                                : Theme.alpha(Theme.textFaint, 0.15)
+                            border.width: 1
+                            border.color: powerMouse.containsMouse
+                                ? Theme.accent
+                                : (page.powered ? Theme.accent : Theme.textFaint)
+                            opacity: page.adapter ? 1.0 : 0.35
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: page.powered ? "BLUETOOTH ON" : "BLUETOOTH OFF"
+                                color: page.powered ? Theme.accent : Theme.textFaint
+                                font.family: page.mono
+                                font.pixelSize: Theme.textSizeSmall
+                                font.bold: true
+                                font.letterSpacing: 2
+                            }
+
+                            MouseArea {
+                                id: powerMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: !!page.adapter
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: page.togglePower()
+                            }
+                        }
+
+                        // rescan
+                        Rectangle {
+                            id: rescanBtn
+                            width: parent.height
+                            height: parent.height
+                            radius: Theme.radius
+                            color: "transparent"
+                            border.width: 1
+                            border.color: rescanMouse.containsMouse ? Theme.accent : Theme.border
+                            opacity: page.powered ? 1.0 : 0.35
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: page.icRefresh
+                                color: (rescanTimer.running || page.scanning) ? Theme.accent : Theme.textDim
+                                font.family: Theme.iconFont
+                                font.pixelSize: Theme.textSizeGroup
+                            }
+
+                            MouseArea {
+                                id: rescanMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                enabled: page.powered
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: page.rescan()
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Devices block ────────────────────────────────
+            SectionHeader {
+                label: "DEVICES"
+                badges: page.powered ? [repeater.count + ""] : []
+            }
+
+            EmptyState {
+                visible: !page.adapter
+                icon: page.icBluetooth
+                title: "NO BLUETOOTH ADAPTER"
+            }
+
+            EmptyState {
+                visible: !!page.adapter && !page.powered
+                icon: page.icBluetooth
+                title: "BLUETOOTH IS OFF"
+            }
+
+            EmptyState {
+                visible: page.powered && repeater.count === 0
+                icon: page.icScan
+                title: "SCANNING FOR DEVICES..."
+                hint: "Devices will appear here."
+            }
 
             Column {
-                id: list
-                width: flick.width
-                spacing: 6
-
-                Item {
-                    width: list.width
-                    height: 100
-                    visible: !page.adapter
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "NO BLUETOOTH ADAPTER"
-                        color: Theme.textDim
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.textSizeBody
-                        font.letterSpacing: 1
-                    }
-                }
-
-                Item {
-                    width: list.width
-                    height: 100
-                    visible: page.adapter && !page.powered
-
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 8
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "\uf294"
-                            color: Theme.textDim
-                            font.family: Theme.iconFont
-                            font.pixelSize: 24
-                        }
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "BLUETOOTH IS OFF"
-                            color: Theme.textDim
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.textSizeBody
-                            font.letterSpacing: 1
-                        }
-                    }
-                }
-
-                Item {
-                    width: list.width
-                    height: 100
-                    visible: page.powered && repeater.count === 0
-
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 8
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "\uf1eb"
-                            color: Theme.textDim
-                            font.family: Theme.iconFont
-                            font.pixelSize: 22
-                        }
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "SCANNING FOR DEVICES..."
-                            color: Theme.textDim
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.textSizeBody
-                            font.letterSpacing: 1
-                        }
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "Keep this open while devices appear."
-                            color: Theme.textFaint
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.textSizeSmall
-                        }
-                    }
-                }
+                id: deviceList
+                width: parent.width
+                spacing: 10
 
                 Repeater {
                     id: repeater
                     model: (page.adapter && page.powered) ? page.adapter.devices : null
 
-                    delegate: Rectangle {
+                    delegate: Item {
                         id: card
 
                         required property BluetoothDevice modelData
@@ -354,172 +503,87 @@ Item {
                         readonly property string deviceKey:
                             modelData.address || modelData.name || ""
 
+                        readonly property bool busy:
+                            modelData.pairing
+                            || modelData.state === BluetoothDeviceState.Connecting
+                            || modelData.state === BluetoothDeviceState.Disconnecting
+
                         visible: !BluetoothState.removingDevices[deviceKey]
-                        width: list.width
-                        height: visible ? 52 : 0
-                        radius: Theme.radius
+                        width: deviceList.width
+                        height: visible ? 64 : 0
 
-                        color: isConnected
-                            ? Theme.alpha(Theme.accent, 0.10)
-                            : "transparent"
+                        Frame { active: card.isConnected }
 
-                        border.width: 1
-                        border.color: isConnected
-                            ? Theme.accent
-                            : Theme.border
-
-                        Item {
-                            id: actionArea
-                            width: 120
-                            height: card.height
-                            x: 14
-                            y: 0
+                        // right side: battery + actions
+                        Row {
+                            id: actions
+                            anchors.right: parent.right
+                            anchors.rightMargin: 16
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 20
 
                             Text {
-                                id: actionText
-                                x: 0
-                                y: (parent.height - height) / 2
-
-                                width: Math.min(
-                                    implicitWidth,
-                                    parent.width - removeButton.width - 12
-                                )
-
-                                text: page.actionLabel(card.modelData)
-
-                                color: card.isConnected
-                                    ? Theme.danger
-                                    : Theme.accent
-
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.textSizeSmall
-                                verticalAlignment: Text.AlignVCenter
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked:
-                                        page.deviceAction(card.modelData)
-                                }
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: card.modelData.batteryAvailable
+                                text: Math.round(card.modelData.battery * 100) + "%"
+                                color: Theme.text
+                                font.family: page.mono
+                                font.pixelSize: Theme.textSizeGroup
                             }
 
-                            Item {
-                                id: removeButton
-                                width: 28
-                                height: 28
-                                x: actionText.width + 12
-                                y: (parent.height - height) / 2
+                            TextButton {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: page.actionLabel(card.modelData)
+                                baseColor: card.isConnected ? Theme.danger : Theme.accent
+                                hoverColor: baseColor
+                                clickable: !card.busy
+                                onClicked: page.deviceAction(card.modelData)
+                            }
 
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "\uf293"
-                                    color: Theme.textDim
-                                    font.family: Theme.iconFont
-                                    font.pixelSize: Theme.textSizeSection
-                                }
-
-                                MouseArea {
-                                    id: unpairMouseArea
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    hoverEnabled: true
-                                    onClicked:
-                                        page.removeDevice(card.modelData)
-                                }
-
-                                Rectangle {
-                                    visible: unpairMouseArea.containsMouse
-                                    z: 100
-                                    x: -8
-                                    y: height + 6
-                                    width: tooltipText.width + 16
-                                    height: 24
-                                    radius: 4
-                                    color: "transparent"
-
-                                    Text {
-                                        id: tooltipText
-                                        anchors.centerIn: parent
-                                        text: "Unpair"
-                                        color: "white"
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.textSizeSmall
-                                    }
-                                }
+                            TextButton {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "UNPAIR"
+                                onClicked: page.removeDevice(card.modelData)
                             }
                         }
 
-                        Item {
-                            id: deviceInfo
-                            x: actionArea.width + 28
-                            y: 0
-                            width: Math.max(
-                                100,
-                                card.width - actionArea.width - 42
-                            )
-                            height: card.height
+                        // left side: icon + name + address
+                        Text {
+                            id: deviceIcon
+                            anchors.left: parent.left
+                            anchors.leftMargin: 16
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: page.icBluetooth
+                            color: card.isConnected ? Theme.accent : Theme.textDim
+                            font.family: Theme.iconFont
+                            font.pixelSize: Theme.textSizeSection
+                        }
+
+                        Column {
+                            anchors.left: deviceIcon.right
+                            anchors.leftMargin: 14
+                            anchors.right: actions.left
+                            anchors.rightMargin: 20
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 3
 
                             Text {
-                                id: deviceIcon
-                                x: 0
-                                y: (parent.height - height) / 2
-                                width: 18
-                                height: 18
-                                text: "\uf294"
-                                color: card.isConnected
-                                    ? Theme.accent
-                                    : Theme.textDim
-                                font.family: Theme.iconFont
-                                font.pixelSize: Theme.textSizeSection
-                                verticalAlignment: Text.AlignVCenter
+                                width: parent.width
+                                text: card.modelData.name || card.modelData.address
+                                elide: Text.ElideRight
+                                color: Theme.text
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.textSizeGroup
                             }
 
-                            Column {
-                                id: deviceText
-                                x: 28
-                                y: (parent.height - height) / 2
-                                width: parent.width - x
-                                spacing: 2
-
-                                Text {
-                                    width: parent.width
-                                    text: card.modelData.name ||
-                                          card.modelData.address
-                                    elide: Text.ElideRight
-                                    color: Theme.text
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.textSizeGroup
-                                }
-
-                                Text {
-                                    width: parent.width
-
-                                    text: {
-                                        var parts = [card.modelData.address]
-
-                                        if (card.isConnected)
-                                            parts.push("connected")
-                                        else if (card.modelData.paired)
-                                            parts.push("paired")
-
-                                        if (card.modelData.batteryAvailable)
-                                            parts.push(
-                                                Math.round(
-                                                    card.modelData.battery * 100
-                                                ) + "%"
-                                            )
-
-                                        return parts.join("  •  ")
-                                    }
-
-                                    color: card.isConnected
-                                        ? Theme.accent
-                                        : Theme.textFaint
-
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.textSizeSmall
-                                    elide: Text.ElideRight
-                                }
+                            Text {
+                                width: parent.width
+                                text: page.deviceSubtitle(card.modelData)
+                                elide: Text.ElideRight
+                                color: card.isConnected ? Theme.accent : Theme.textDim
+                                font.family: page.mono
+                                font.pixelSize: Theme.textSizeSmall
+                                font.letterSpacing: 1
                             }
                         }
                     }

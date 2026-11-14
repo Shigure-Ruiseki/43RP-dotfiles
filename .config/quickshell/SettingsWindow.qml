@@ -25,15 +25,26 @@ Scope {
     property real sidebarCollapsedWidth: 37   // only the toggle button stays visible
     property bool sidebarCollapsed: false
 
-    // ---- lifecycle -------------------------------------------------------
-    property bool showing: false      // logical "settings are open"
-    property bool mounted: false      // window exists
+    // ---- lifecycle (open/close/toggle animation logic lives in PopupLifecycle.qml) ----
     property real winW: 0             // reported by the window while mounted
     property real winH: 0
 
-    function show()   { showing = true }
-    function hide()   { showing = false }
-    function toggle() { showing = !showing }
+    PopupLifecycle {
+        id: life
+        keepAliveMs: 20000
+        sized: root.winW > 0 && root.winH > 0
+        onUnmounted: {
+            root.winW = 0
+            root.winH = 0
+        }
+    }
+
+    readonly property bool showing: life.showing   // logical "settings are open"
+    readonly property bool mounted: life.mounted   // window exists
+
+    function show()   { life.show() }
+    function hide()   { life.hide() }
+    function toggle() { life.toggle() }
 
     function toggleSidebar() {
         sidebarCollapsed = !sidebarCollapsed
@@ -41,31 +52,13 @@ Scope {
     }
 
     onShowingChanged: {
-        if (showing) {
-            unmountTimer.stop()
-            mounted = true
-        } else {
+        if (!showing) {
             dragging = false
             resizing = false
             sidebarResizing = false
             searchQuery = ""
-            unmountTimer.restart()
+            focusTarget = "page"
         }
-    }
-
-    function unmount() {
-        if (root.showing) return        // reopened in the meantime
-        root.mounted = false
-        root.winW = 0
-        root.winH = 0
-    }
-
-    property int keepAliveMs: 20000
-
-    Timer {
-        id: unmountTimer
-        interval: Math.max(600, root.keepAliveMs)
-        onTriggered: root.unmount()
     }
 
     // ---- navigation -------------------------------------------------------
@@ -78,11 +71,12 @@ Scope {
         { name: "Keybinds", icon: "󰧮",  page: "KeybindsPage" },
         { name: "Appearance", icon: "󰏘", page: "AppearancePage" },
         { name: "Themes", icon: "󰉼",  page: "ThemesPage" },
-        { name: "Bar", icon: "󰖔",  page: "BarPage" },
-        { name: "Input", icon: "󰍽", page: "InputPage" },
+        { name: "Bar", icon: "\ue690",  page: "BarPage" },
+        { name: "Side Panel", icon: "\uec01",  page: "SidePanelPage" },
+        { name: "Input", icon: "\udb83\udfb0", page: "InputPage" },
         { name: "Network", icon: "󰖩", page: "NetworkPage" },
-        { name: "Bluetooth", icon: "󰂯", page: "BluetoothPage" },
-        { name: "Storage", icon: "󰋊", page: "StoragePage" },
+        { name: "Bluetooth", icon: "\uf293", page: "BluetoothPage" },
+        { name: "Storage", icon: "\uf0a0", page: "StoragePage" },
         { name: "Updates", icon: "󰚰",  page: "UpdatesPage" },
     ]
 
@@ -101,16 +95,47 @@ Scope {
         return out
     }
 
-    function nextPage() { selectedIndex = (selectedIndex + 1) % navItems.length }
-    function prevPage() { selectedIndex = (selectedIndex - 1 + navItems.length) % navItems.length }
+    // Tab order: collapse button -> search box -> System -> ... -> Updates -> (wraps to collapse)
+    property string focusTarget: "page"      // "collapse" | "search" | "page"
+
+    function nextPage() {
+        if (focusTarget === "collapse") {
+            if (sidebarCollapsed) { focusTarget = "page"; selectedIndex = 0 }   // search is hidden
+            else focusTarget = "search"
+        } else if (focusTarget === "search") {
+            focusTarget = "page"
+            selectedIndex = 0
+        } else if (selectedIndex < navItems.length - 1) {
+            selectedIndex++
+        } else {
+            focusTarget = "collapse"
+        }
+    }
+
+    function prevPage() {
+        if (focusTarget === "search") {
+            focusTarget = "collapse"
+        } else if (focusTarget === "collapse") {
+            focusTarget = "page"
+            selectedIndex = navItems.length - 1
+        } else if (selectedIndex > 0) {
+            selectedIndex--
+        } else {
+            focusTarget = sidebarCollapsed ? "collapse" : "search"
+        }
+    }
 
     // ---- card geometry (persisted snap state) ----------------------------
-    property real cardMargin: 40
-    property real dragMargin: 8
+    property real cardMargin: 40      // gap used by the snap presets only (top/bottom/left/right)
+    property real dragMargin: 0       // gap to screen edge while dragging/resizing: 0 = touch every edge/corner
+    // The visible card is scaled by Theme.settingsScale around its center, so clamp on the
+    // VISIBLE edges: sc = scale, k = (1+sc)/2 (distance from card origin to visible far edge factor).
+    readonly property real sc: Theme.settingsScale > 0 ? Theme.settingsScale : 1
+    readonly property real k: (1 + sc) / 2
     property bool dragging: false
     property bool resizing: false
 
-    property real cardHeightCenter: Math.min(640, root.winH - cardMargin * 2)
+    property real cardHeightCenter: Math.min(680, root.winH - cardMargin * 2)
     property real cardHeightSnapped: cardHeightCenter * 0.6
     property real cardWidthCenter: Math.min(980, root.winW - cardMargin * 2)
     property real cardWidthSnapped: cardWidthCenter * 0.85
@@ -156,11 +181,13 @@ Scope {
     }
 
     function clampX(v) {
-        return Math.max(dragMargin, Math.min(root.winW - cardWidth - dragMargin, v))
+        var inset = cardWidth * (1 - sc) / 2
+        return Math.max(dragMargin - inset, Math.min(root.winW - cardWidth - dragMargin + inset, v))
     }
 
     function clampY(v) {
-        return Math.max(dragMargin, Math.min(root.winH - cardHeight - dragMargin, v))
+        var inset = cardHeight * (1 - sc) / 2
+        return Math.max(dragMargin - inset, Math.min(root.winH - cardHeight - dragMargin + inset, v))
     }
 
     function clampRange(v, lo, hi) {
@@ -196,10 +223,10 @@ Scope {
         case "free":
             cardWidth = clampRange(freeW > 0 ? freeW : cardWidthCenter,
                                    Math.min(minCardWidth, root.winW - 2 * dragMargin),
-                                   Math.min(maxCardWidth, root.winW - 2 * dragMargin))
+                                   Math.min(maxCardWidth, (root.winW - 2 * dragMargin) / sc))
             cardHeight = clampRange(freeH > 0 ? freeH : cardHeightCenter,
                                     Math.min(minCardHeight, root.winH - 2 * dragMargin),
-                                    Math.min(maxCardHeight, root.winH - 2 * dragMargin))
+                                    Math.min(maxCardHeight, (root.winH - 2 * dragMargin) / sc))
             cardX = clampX(freeX)
             cardY = clampY(freeY)
             break
@@ -237,29 +264,29 @@ Scope {
     function resizeCard(corner, sx, sy, sw, sh, dx, dy) {
         var onLeft = corner.charAt(1) === "l"
         var onTop  = corner.charAt(0) === "t"
-        var maxW = Math.min(maxCardWidth,  root.winW - 2 * dragMargin)
-        var maxH = Math.min(maxCardHeight, root.winH - 2 * dragMargin)
+        var maxW = Math.min(maxCardWidth,  (root.winW - 2 * dragMargin) / sc)
+        var maxH = Math.min(maxCardHeight, (root.winH - 2 * dragMargin) / sc)
         var w, h, x, y, lo, hi
 
         if (onLeft) {
-            hi = Math.min(maxW, sx + sw - dragMargin)
+            hi = Math.min(maxW, (sx + sw - dragMargin) / k)
             lo = Math.min(minCardWidth, hi)
             w = clampRange(sw - dx, lo, hi)
             x = sx + sw - w
         } else {
-            hi = Math.min(maxW, root.winW - dragMargin - sx)
+            hi = Math.min(maxW, (root.winW - dragMargin - sx) / k)
             lo = Math.min(minCardWidth, hi)
             w = clampRange(sw + dx, lo, hi)
             x = sx
         }
 
         if (onTop) {
-            hi = Math.min(maxH, sy + sh - dragMargin)
+            hi = Math.min(maxH, (sy + sh - dragMargin) / k)
             lo = Math.min(minCardHeight, hi)
             h = clampRange(sh - dy, lo, hi)
             y = sy + sh - h
         } else {
-            hi = Math.min(maxH, root.winH - dragMargin - sy)
+            hi = Math.min(maxH, (root.winH - dragMargin - sy) / k)
             lo = Math.min(minCardHeight, hi)
             h = clampRange(sh + dy, lo, hi)
             y = sy
@@ -279,6 +306,13 @@ Scope {
         root.freeW = root.cardWidth
         root.freeH = root.cardHeight
         root.saveState()
+    }
+
+    // First launch: make sure the state directory exists before anything is saved.
+    Process {
+        id: mkStateDir
+        command: ["mkdir", "-p", Quickshell.env("HOME") + "/.config/quickshell/state"]
+        running: true
     }
 
     FileView {
@@ -315,8 +349,9 @@ Scope {
         function hide(): void { root.hide() }
         function toggleSidebar(): void { root.toggleSidebar() }
         function resetSidebarWidth(): void { root.resetSidebarWidth() }
-        function sound(): void { root.selectedIndex = 1, root.show() } 
+        function sound(): void { root.selectedIndex = 1, root.show() }
         function network(): void { root.selectedIndex = 8, root.show() }
+        function bluetooth(): void { root.selectedIndex = 9, root.show() }   // <- set the right index
         function bar(): void { root.selectedIndex = 6, root.show() }
         function snapTop(): void { root.snapTop() }
         function snapCenter(): void { root.snapCenter() }
@@ -327,46 +362,19 @@ Scope {
 
     // ---- the window: only exists while mounted ---------------------------
     LazyLoader {
-        active: root.mounted
+        active: life.mounted
 
         PanelWindow {
             id: win
-            property bool reveal: false
             property bool sized: false
-            property bool warm: false       // fallback so a broken page can't keep the window hidden
-            property bool revealBound: false
-            property int warmFrames: 0
 
-            readonly property bool pageReady: pageLoader.status === Loader.Ready
-            readonly property bool canReveal: sized && (pageReady || warm)
+            // Feed the window's readiness into the lifecycle (restored automatically
+            // when the window is destroyed on unmount).
+            Binding { target: life; property: "contentReady"; value: pageLoader.status === Loader.Ready }
+            Binding { target: life; property: "assetsReady";  value: bgPic.ready }
+            Binding { target: life; property: "frameWindow";  value: card.Window.window }
 
-            function bindReveal() {
-                if (revealBound)
-                    return
-                revealBound = true
-                reveal = Qt.binding(function () { return root.showing })
-            }
-
-            Timer {
-                running: true
-                interval: 600
-                onTriggered: win.warm = true
-            }
-
-            Timer {
-                running: win.canReveal && !win.revealBound
-                interval: 250
-                onTriggered: win.bindReveal()
-            }
-
-            Connections {
-                target: card.Window.window
-                ignoreUnknownSignals: true
-                function onFrameSwapped() {
-                    if (win.sized && win.pageReady && !win.revealBound && ++win.warmFrames >= 3)
-                        win.bindReveal()
-                }
-            }
+            readonly property bool reveal: life.reveal
 
             anchors { top: true; left: true; right: true; bottom: true }
             color: "transparent"
@@ -375,21 +383,65 @@ Scope {
             WlrLayershell.namespace: "settings"
             WlrLayershell.keyboardFocus: root.showing ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
-            // Input region: the whole screen only when click-outside-to-close is on (the backdrop
-            // has to catch those clicks). Otherwise only the card takes input and every click
-            // outside it passes through to the windows underneath.
-            // The card's rect is bound explicitly (rather than via `item: card`) so the input
-            // region always follows drags, resizes and snaps, with a little padding so the
-            // drag tab and snap buttons at the very top edge are never clipped.
-            mask: Region {
-                readonly property real pad: 16
-                readonly property bool cardOnly: root.showing && !Theme.clickOutsideClose
+            // ---- Input region ----
+            //
+            // Only the card takes input; everywhere else the pointer passes through to the
+            // windows underneath. While hidden/closing the region is empty (full click-through).
+            // While dragging/resizing the whole window takes input so the pointer can't leave
+            // the region mid-gesture.
+            //
+            // inputRect tracks the card's TARGET geometry (root.cardX/Y/Width/Height), not the
+            // animated one, so the region is not re-sent to the compositor on every animation
+            // frame. Region does not always update by itself (see Region.changed docs), so
+            // changed() is emitted (coalesced) whenever an input changes, and again shortly
+            // after the window is created to cover first-launch timing.
+            Item {
+                id: inputRect
+                x: Math.round(root.cardX)
+                y: Math.round(root.cardY)
+                width: Math.round(root.cardWidth)
+                height: Math.round(root.cardHeight)
+                onXChanged: win.refreshMask()
+                onYChanged: win.refreshMask()
+                onWidthChanged: win.refreshMask()
+                onHeightChanged: win.refreshMask()
+            }
 
-                item: root.showing && Theme.clickOutsideClose ? backdrop : null
-                x: Math.round(root.cardX) - pad
-                y: Math.round(root.cardY) - pad
-                width: cardOnly ? Math.round(root.cardWidth) + pad * 2 : 0
-                height: cardOnly ? Math.round(root.cardHeight) + pad * 2 : 0
+            mask: Region {
+                id: inputMask
+                item: !(root.showing && win.sized) ? null
+                    : (root.dragging || root.resizing) ? backdrop
+                    : inputRect
+            }
+
+            function emitMaskChanged() { inputMask.changed() }
+            // Qt.callLater with the same function reference is coalesced into a single call
+            function refreshMask() { Qt.callLater(win.emitMaskChanged) }
+
+            onSizedChanged: refreshMask()
+            onRevealChanged: refreshMask()
+
+            Connections {
+                target: root
+                function onShowingChanged() { win.refreshMask() }
+                function onWinWChanged()    { win.refreshMask() }
+                function onWinHChanged()    { win.refreshMask() }
+                function onDraggingChanged() { win.refreshMask() }
+                function onResizingChanged() { win.refreshMask() }
+            }
+
+            // First-launch safety net: re-assert the region after things have settled.
+            Timer {
+                running: root.showing
+                interval: 400
+                repeat: false
+                onTriggered: win.refreshMask()
+            }
+            Timer {
+                running: root.showing
+                interval: 1500
+                repeat: false
+                onTriggered: win.refreshMask()
             }
 
             function syncSize() {
@@ -420,13 +472,32 @@ Scope {
                 onActivated: win.focusSearch()
             }
 
+            // Tab stops: move real keyboard focus to match root.focusTarget
+            Connections {
+                target: root
+                function onFocusTargetChanged() {
+                    if (root.focusTarget === "search") {
+                        if (!searchInput.activeFocus) {
+                            searchInput.forceActiveFocus()
+                            searchInput.selectAll()
+                        }
+                    } else if (searchInput.activeFocus) {
+                        backdrop.forceActiveFocus()
+                    }
+                }
+            }
+
+            // Invisible full-window item that holds keyboard focus (Esc / Tab handling).
+            // It has no MouseArea, and is outside the input region, so clicking outside
+            // the card goes to the windows underneath.
             Rectangle {
                 id: backdrop
                 anchors.fill: parent
                 color: "transparent"
 
                 focus: root.showing
-                Keys.onEscapePressed: root.hide()
+                // Esc only closes settings while the pointer is over the card
+                Keys.onEscapePressed: if (card.hovered) root.hide()
                 Keys.onPressed: function (event) {
                     if (event.key === Qt.Key_Backtab ||
                     (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier))) {
@@ -435,11 +506,12 @@ Scope {
                     } else if (event.key === Qt.Key_Tab) {
                         root.nextPage()
                         event.accepted = true
+                    } else if (root.focusTarget === "collapse" &&
+                               (event.key === Qt.Key_Return || event.key === Qt.Key_Enter ||
+                                event.key === Qt.Key_Space)) {
+                        root.toggleSidebar()
+                        event.accepted = true
                     }
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: if (Theme.clickOutsideClose) root.hide()
                 }
             }
 
@@ -454,49 +526,17 @@ Scope {
                 open: win.reveal
 
                 cacheContent: true
-                prewarm: win.sized && !win.revealBound
-                fadeDuration: 150
-                popDuration: 170
-                tiltDuration: 220
+                prewarm: win.sized && !life.opened
+                fadeDuration: 260
+                popDuration: 340
+                tiltDuration: 380
                 popEasing: Easing.OutCubic
-                closedScale: 0.93
+                closedScale: 0.7
 
-                Behavior on x {
-                    enabled: !root.dragging && !root.resizing && win.reveal
-                    NumberAnimation {
-                        duration: Theme.animMed
-                        easing.type: Easing.OutCubic
-                    }
-                }
-
-                Behavior on y {
-                    enabled: !root.dragging && !root.resizing && win.reveal
-                    NumberAnimation {
-                        duration: Theme.animMed
-                        easing.type: Easing.OutCubic
-                    }
-                }
-
-                Behavior on width {
-                    enabled: !root.dragging && !root.resizing && win.reveal
-                    NumberAnimation {
-                        duration: Theme.animMed
-                        easing.type: Easing.OutCubic
-                    }
-                }
-
-                Behavior on height {
-                    enabled: !root.dragging && !root.resizing && win.reveal
-                    NumberAnimation {
-                        duration: Theme.animMed
-                        easing.type: Easing.OutCubic
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {}
-                }
+                Behavior on x      { enabled: !root.dragging && !root.resizing && win.reveal; NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
+                Behavior on y      { enabled: !root.dragging && !root.resizing && win.reveal; NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
+                Behavior on width  { enabled: !root.dragging && !root.resizing && win.reveal; NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
+                Behavior on height { enabled: !root.dragging && !root.resizing && win.reveal; NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
 
                 Rectangle {
                     anchors.fill: parent
@@ -504,8 +544,70 @@ Scope {
                     radius: Theme.radius
                     border.color: Theme.accent
                     border.width: 1
+                    scale: Theme.settingsScale
+                    transformOrigin: Item.Center
+                    BackgroundImage {
+                        id: bgPic
+                        anchors.fill: parent
+                        anchors.margins: 1
+                        radius: Math.max(0, Theme.radius - 1)
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {}
+                    }
 
-                    // drag handle + snap buttons
+                    // drag strip: invisible, runs along the whole top edge of the card
+                    MouseArea {
+                        id: dragArea
+                        anchors {
+                            top: parent.top
+                            left: parent.left
+                            right: parent.right
+                        }
+                        height: 16
+                        acceptedButtons: Qt.LeftButton
+                        cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+
+                        property real pressX: 0
+                        property real pressY: 0
+                        property real startX: 0
+                        property real startY: 0
+                        property bool moved: false
+
+                        onPressed: function (mouse) {
+                            var p = dragArea.mapToItem(backdrop, mouse.x, mouse.y)
+                            pressX = p.x
+                            pressY = p.y
+                            startX = root.cardX
+                            startY = root.cardY
+                            moved = false
+                            root.dragging = true
+                        }
+
+                        onPositionChanged: function (mouse) {
+                            if (!root.dragging) return
+                            var p = dragArea.mapToItem(backdrop, mouse.x, mouse.y)
+                            moved = true
+                            root.cardX = root.clampX(startX + (p.x - pressX))
+                            root.cardY = root.clampY(startY + (p.y - pressY))
+                        }
+
+                        onReleased: {
+                            if (!root.dragging) return
+                            if (moved) root.finishDrag()
+                            else root.dragging = false
+                        }
+
+                        onCanceled: {
+                            if (!root.dragging) return
+                            if (moved) root.finishDrag()
+                            else root.dragging = false
+                        }
+                    }
+
+                    // snap buttons on the original tab (tab is visual only now;
+                    // dragging is handled by the full-width strip above)
                     Item {
                         id: positionHandle
                         width: 100
@@ -561,50 +663,6 @@ Scope {
                             }
                         }
 
-                        MouseArea {
-                            id: dragArea
-                            anchors.fill: parent
-                            anchors.bottomMargin: -6
-                            acceptedButtons: Qt.LeftButton
-                            cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-
-                            property real pressX: 0
-                            property real pressY: 0
-                            property real startX: 0
-                            property real startY: 0
-                            property bool moved: false
-
-                            onPressed: function (mouse) {
-                                var p = dragArea.mapToItem(backdrop, mouse.x, mouse.y)
-                                pressX = p.x
-                                pressY = p.y
-                                startX = root.cardX
-                                startY = root.cardY
-                                moved = false
-                                root.dragging = true
-                            }
-
-                            onPositionChanged: function (mouse) {
-                                if (!root.dragging) return
-                                var p = dragArea.mapToItem(backdrop, mouse.x, mouse.y)
-                                moved = true
-                                root.cardX = root.clampX(startX + (p.x - pressX))
-                                root.cardY = root.clampY(startY + (p.y - pressY))
-                            }
-
-                            onReleased: {
-                                if (!root.dragging) return
-                                if (moved) root.finishDrag()
-                                else root.dragging = false
-                            }
-
-                            onCanceled: {
-                                if (!root.dragging) return
-                                if (moved) root.finishDrag()
-                                else root.dragging = false
-                            }
-                        }
-
                         Row {
                             anchors.centerIn: parent
                             anchors.verticalCenterOffset: -1
@@ -650,13 +708,7 @@ Scope {
                             spacing: 10
                             clip: true
 
-                            Behavior on width {
-                                enabled: !root.sidebarResizing
-                                NumberAnimation {
-                                    duration: Theme.animMed
-                                    easing.type: Easing.OutCubic
-                                }
-                            }
+                            Behavior on width { enabled: !root.sidebarResizing; NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
 
                             Item {
                                 id: sidebarHeader
@@ -673,21 +725,20 @@ Scope {
                                         width: 26
                                         height: 26
                                         radius: Theme.radius
-                                        color: collapseMouse.containsMouse
+                                        readonly property bool kbFocus: root.focusTarget === "collapse"
+
+                                        color: (collapseMouse.containsMouse || kbFocus)
                                             ? Theme.alpha(Theme.text, 0.08)
                                             : "transparent"
                                         border.width: 1
-                                        border.color: collapseMouse.containsMouse
-                                            ? Theme.alpha(Theme.text, 0.18)
-                                            : "transparent"
+                                        border.color: kbFocus
+                                            ? Theme.accent
+                                            : collapseMouse.containsMouse
+                                                ? Theme.alpha(Theme.text, 0.18)
+                                                : "transparent"
 
-                                        Behavior on color {
-                                            ColorAnimation { duration: Theme.animFast }
-                                        }
-
-                                        Behavior on border.color {
-                                            ColorAnimation { duration: Theme.animFast }
-                                        }
+                                        Behavior on color        { ColorAnimation { duration: Theme.animFast } }
+                                        Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
                                         // ChatGPT-style sidebar icon
                                         Item {
@@ -701,7 +752,7 @@ Scope {
                                                 radius: 3
                                                 color: "transparent"
                                                 border.width: 1.4
-                                                border.color: collapseMouse.containsMouse
+                                                border.color: (collapseMouse.containsMouse || collapseButton.kbFocus)
                                                     ? Theme.accent
                                                     : Theme.textDim
                                             }
@@ -713,16 +764,11 @@ Scope {
                                                 width: 1.3
                                                 height: parent.height - 3
                                                 radius: 1
-                                                color: collapseMouse.containsMouse
+                                                color: (collapseMouse.containsMouse || collapseButton.kbFocus)
                                                     ? Theme.accent
                                                     : Theme.textDim
 
-                                                Behavior on x {
-                                                    NumberAnimation {
-                                                        duration: Theme.animMed
-                                                        easing.type: Easing.OutCubic
-                                                    }
-                                                }
+                                                Behavior on x { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } }
                                             }
                                         }
 
@@ -788,17 +834,38 @@ Scope {
 
                                             onTextChanged: root.searchQuery = text
 
+                                            // Tab / Shift+Tab keep working while typing in the search box
+                                            Keys.onPressed: function (event) {
+                                                if (event.key === Qt.Key_Backtab ||
+                                                    (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier))) {
+                                                    root.prevPage()
+                                                    event.accepted = true
+                                                } else if (event.key === Qt.Key_Tab) {
+                                                    root.nextPage()
+                                                    event.accepted = true
+                                                }
+                                            }
+
+                                            // clicking into the box makes it the current tab stop
+                                            onActiveFocusChanged: {
+                                                if (activeFocus)
+                                                    root.focusTarget = "search"
+                                                else if (root.focusTarget === "search")
+                                                    root.focusTarget = "page"
+                                            }
+
                                             // Enter jumps to the first match
                                             onAccepted: {
                                                 if (root.filteredNavItems.length > 0)
                                                     root.selectedIndex = root.filteredNavItems[0].origIndex
                                             }
 
-                                            // Esc clears the box first; a further Esc closes settings
+                                            // Esc clears the box first; a further Esc closes settings,
+                                            // but only while the pointer is over the card
                                             Keys.onEscapePressed: {
                                                 if (text !== "") {
                                                     root.searchQuery = ""
-                                                } else {
+                                                } else if (card.hovered) {
                                                     focus = false
                                                     root.hide()
                                                 }
@@ -940,9 +1007,7 @@ Scope {
                                     ? Theme.accent
                                     : Theme.border
 
-                                Behavior on color {
-                                    ColorAnimation { duration: Theme.animFast }
-                                }
+                                Behavior on color { ColorAnimation { duration: Theme.animFast } }
                             }
 
                             MouseArea {

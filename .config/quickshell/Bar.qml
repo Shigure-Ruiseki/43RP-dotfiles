@@ -5,12 +5,12 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import Quickshell.Bluetooth
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 
 Scope {
     id: root
-
     // ───────────────────────── Config ─────────────────────────
     // Single source of truth for defaults (used by the adapter AND reset).
     readonly property var defaults: ({
@@ -18,28 +18,35 @@ Scope {
         position: "left", style: "joined", thickness: 20, margin: 4,
         reserveSpace: true, allScreens: true, dragModules: true,
         // appearance
-        scale: 1.0, bgOpacity: 0.5, border: false, radius: 16, calRadius: 15,
+        scale: 1.0, barScale: 0.9, bgOpacity: 0.35, border: false, borderOpacity: 1.0, radius: 16, calRadius: 15, calScale: 0.9, 
         // tooltips
-        tooltips: true, tooltipHints: true, tipDelay: 450,
-        // modules
-        modPad: 20, wsDot: 10, wsGap: 8, wsScroll: true,
-        statsPercent: false, statsScale: 1.0, statsBorder: true, statsWarn: 85, tempWarn: 85, batLowPct: 15,
-        volStep: 2, volMax: 100,
+        tooltips: true, tooltipHints: false, tooltipBorder: false, tipDelay: 450, tooltipScale: 1.0,
+        modPad: 18, wsDot: 16, wsGap: 8, wsScroll: true, wsNumbers: true,
+        tasksScale: 0.85, tasksGap: 2, tasksColor: "normal",
+        statsPercent: false, statsIcons: false, statsScale: 0.95, statsBorder: false, statsRadius: 24, statsGap: 1, statsWarn: 85, tempWarn: 85, batLowPct: 15,
+        batNumber: false, batPercent: false,
+        volStep: 2, volMax: 100, volNumber: false, volPercent: false,
+        lightIcons: "normal", brightStep: 5, nightStep: 100, 
         // clock / calendar
-        clock24: true, clockSeconds: false, weekMonday: true,
-        // clock click binds: "calendar" | "quickactions" | "settings" | "barsettings" | "none"
-        clockPrimary: "calendar", clockSecondary: "quickactions", clockTertiary: "settings",
+        clock24: true, clockSeconds: false, clockPadHour: true, clockDate: true, clockDay: false, clockCase: "normal", dateOrder: "dm", weekMonday: true,
+        // clock click binds: "calendar" (opens SidePanel) | "quickactions" | "settings" | "barsettings" | "none"
+        clockPrimary: "calendar", clockSecondary: "settings", clockTertiary: "quickactions",
         // settings button click binds: "quickactions" | "settings" | "barsettings" | "none"
         settingsPrimary: "settings", settingsSecondary: "barsettings", settingsTertiary: "none",
         // module placement
-        hidden: "cpu,ram,gpu,temp,wall,settings,tasks",
-        startMods: "cpu,ram,gpu,temp,ws",
+        hidden: "wall,settings,ram",
+        startMods: "notif,cpu,ram,gpu,cputemp,gputemp",
+        midLeftMods: "ws",
         centerMods: "clock",
-        endMods: "media,volume,battery,net,notif,wall,settings,power"
+        midRightMods: "tasks",
+        endMods: "media,battery,wall,settings,bright,night,volume,bt,net,power"
     })
     readonly property var positions: ["top", "right", "bottom", "left"]
-    readonly property var styles: ["floating", "joined", "strip"]
-    readonly property var sections: ["start", "center", "end"]
+    readonly property var styles: ["floating", "joined", "strip", "islands"]
+    // Five zones along the bar: start · midLeft · center · midRight · end
+    //   midLeft  is centered between the start zone and the center zone
+    //   midRight is centered between the center zone and the end zone
+    readonly property var sections: ["start", "midLeft", "center", "midRight", "end"]
 
     // Live config object, edited by BarPage (the settings page).
     readonly property var config: cfg
@@ -63,28 +70,52 @@ Scope {
             property bool reserveSpace: root.defaults.reserveSpace   // push windows away from the bar
             property bool allScreens: root.defaults.allScreens       // false → first screen only
             property bool dragModules: root.defaults.dragModules     // drag modules on the bar to reorder / move them
-            property real scale: root.defaults.scale
+            property real scale: root.defaults.scale                 // text scale
+            property real barScale: root.defaults.barScale           // whole-bar scale (thickness, margins, padding, dots, text)
             property real bgOpacity: root.defaults.bgOpacity
             property bool border: root.defaults.border
+            property real borderOpacity: root.defaults.borderOpacity // border alpha (0–1)
             property int radius: root.defaults.radius            // bar corner radius
             property int calRadius: root.defaults.calRadius      // calendar popup corner radius
+            property real calScale: root.defaults.calScale       // calendar popup scale
             property bool tooltips: root.defaults.tooltips
             property bool tooltipHints: root.defaults.tooltipHints // show "Left click: ..." lines in tooltips
+            property bool tooltipBorder: root.defaults.tooltipBorder // outline around tooltips
             property int tipDelay: root.defaults.tipDelay        // ms before a tooltip appears
+            property real tooltipScale: root.defaults.tooltipScale 
             property int modPad: root.defaults.modPad            // horizontal padding of text modules
             property int wsDot: root.defaults.wsDot              // workspace dot size
             property int wsGap: root.defaults.wsGap              // gap between workspace dots
             property bool wsScroll: root.defaults.wsScroll       // scroll on workspaces to switch
+            property bool wsNumbers: root.defaults.wsNumbers     // show the workspace number inside each dot
+            property real tasksScale: root.defaults.tasksScale   // open-apps icon scale
+            property int tasksGap: root.defaults.tasksGap        // space between open-apps icons
+            property string tasksColor: root.defaults.tasksColor // open-apps icon tint: "normal" | "accent"
             property bool statsPercent: root.defaults.statsPercent // show the % / °C symbols on CPU / RAM / GPU / TEMP
+            property bool statsIcons: root.defaults.statsIcons   // glyph instead of the CPU / RAM / GPU / TEMP text label
             property real statsScale: root.defaults.statsScale   // text scale of the CPU / RAM / GPU / TEMP badges
             property bool statsBorder: root.defaults.statsBorder // outline around the stat badges
+            property int statsRadius: root.defaults.statsRadius  // badge corner radius (24 = full pill)
+            property int statsGap: root.defaults.statsGap        // space between neighbouring stat badges
             property int statsWarn: root.defaults.statsWarn      // CPU/RAM/GPU % that turns red
             property int tempWarn: root.defaults.tempWarn        // CPU/GPU °C that turns red
             property int batLowPct: root.defaults.batLowPct      // battery % that turns red
+            property bool batNumber: root.defaults.batNumber     // show the battery percentage next to the icon
+            property bool batPercent: root.defaults.batPercent   // add the % symbol to the battery number
             property int volStep: root.defaults.volStep          // % per scroll notch
             property int volMax: root.defaults.volMax            // max volume %
+            property bool volNumber: root.defaults.volNumber     // show the volume level next to the icon
+            property bool volPercent: root.defaults.volPercent   // add the % symbol to the volume number
+            property int brightStep: root.defaults.brightStep      // % per scroll notch
+            property int nightStep: root.defaults.nightStep        // K per scroll notch
+            property string lightIcons: root.defaults.lightIcons   // "normal" (sun + moon) | "star" | "bar"
             property bool clock24: root.defaults.clock24
             property bool clockSeconds: root.defaults.clockSeconds
+            property bool clockPadHour: root.defaults.clockPadHour // leading zero on the hour: 02:20 vs 2:20
+            property bool clockDate: root.defaults.clockDate     // minimal date next to the clock, e.g. "Thu, 29/10"
+            property bool clockDay: root.defaults.clockDay       // weekday (Mon/Tue) in front of the date
+            property string clockCase: root.defaults.clockCase   // day name + AM/PM letters: "normal" | "upper" | "lower"
+            property string dateOrder: root.defaults.dateOrder   // date order: "dm" (29/10) | "md" (10/29)
             property bool weekMonday: root.defaults.weekMonday   // calendar week starts on Monday
             property string clockPrimary: root.defaults.clockPrimary     // clock left click
             property string clockSecondary: root.defaults.clockSecondary // clock right click
@@ -94,7 +125,9 @@ Scope {
             property string settingsTertiary: root.defaults.settingsTertiary   // settings button middle click
             property string hidden: root.defaults.hidden         // comma list of disabled modules
             property string startMods: root.defaults.startMods
+            property string midLeftMods: root.defaults.midLeftMods
             property string centerMods: root.defaults.centerMods
+            property string midRightMods: root.defaults.midRightMods
             property string endMods: root.defaults.endMods
         }
     }
@@ -108,26 +141,39 @@ Scope {
 
     // ───────────────────────── Derived layout ─────────────────────────
     readonly property bool vertical: cfg.position === "left" || cfg.position === "right"
-    readonly property bool joined: cfg.style !== "floating"
     readonly property bool strip: cfg.style === "strip"
-    readonly property int panelThick: vertical ? cfg.thickness + 12 : cfg.thickness
-    readonly property int effEdge: strip ? 0 : cfg.margin
-    readonly property int effGap: strip ? 0 : 6
+    readonly property bool islands: cfg.style === "islands"
+    readonly property bool joined: cfg.style === "joined" || cfg.style === "strip"
+    readonly property real bs: cfg.barScale
+    readonly property int panelThick: Math.round((vertical ? cfg.thickness + 12 : cfg.thickness) * bs)
+    readonly property int effEdge: strip ? 0 : Math.round(cfg.margin * bs)
+    readonly property int effGap: strip ? 0 : Math.round(6 * bs)
+    readonly property int modPadPx: Math.round(cfg.modPad * bs)
+    readonly property int wsDotPx: Math.max(3, Math.round(cfg.wsDot * bs))
+    readonly property int wsGapPx: Math.round(cfg.wsGap * bs)
+    // the dot size slider drives the box in both modes; with numbers on, the digit scales with it
+    readonly property int wsBoxPx: wsDotPx
     readonly property real barRadius: strip ? 0 : cfg.radius
     readonly property color bgColor: Qt.alpha(Theme.bg, cfg.bgOpacity)
-    readonly property color borderColor: Theme.accent
+    readonly property color borderColor: Qt.alpha(Theme.accent, cfg.borderOpacity)
 
-    function s(n) { return Math.round(n * cfg.scale); }
+    function s(n) { return Math.round(n * cfg.scale * cfg.barScale); }
+    function cs(n) { return Math.round(n * cfg.scale * cfg.calScale); }   // calendar text sizes
+    function cl(n) { return Math.round(n * cfg.calScale); }               // calendar layout sizes
 
     readonly property var sz: ({
         stat: s(12), clock: s(12), marquee: s(11),
-        icon: s(16), batIcon: s(13), batText: s(12), power: s(14),
+        icon: s(16), batIcon: s(13), batText: s(12), power: s(16),
         taskIcon: s(18),
-        calTime: s(30), calDate: s(12), calMonth: s(13), calArrow: s(16),
-        calWeekday: s(11), calDay: s(12)
+        calTime: cs(30), calDate: cs(12), calMonth: cs(13), calArrow: cs(16),
+        calWeekday: cs(11), calDay: cs(12)
     })
-    readonly property int sizeIconGap: 12
+    readonly property int sizeIconGap: Math.round(12 * bs)
     readonly property int iconYOffset: 1
+
+    // Open-apps icon size: the base size times the user's scale, never larger than the bar itself.
+    readonly property int taskIconPx: Math.max(8, Math.min(Math.round(sz.taskIcon * cfg.tasksScale), panelThick - 2))
+    readonly property int taskGapPx: Math.round(cfg.tasksGap * bs)
 
     // margin for one side of the bar frame
     function edgeMargin(side) {
@@ -188,48 +234,93 @@ Scope {
             || Quickshell.iconPath("image-missing");
     }
 
+    // Short, friendly app name for the open-apps tooltip (desktop entry name, else the app id).
+    function appName(appId) {
+        const id = appId ?? "";
+        let entry = null;
+        try {
+            entry = DesktopEntries.heuristicLookup(id) ?? DesktopEntries.heuristicLookup(id.toLowerCase());
+        } catch (e) { entry = null; }
+        return entry && entry.name ? entry.name : id;
+    }
+
     // ───────────────────────── Clock formatting ─────────────────────────
+    function pad2(n) { return String(n).padStart(2, "0"); }
+
+    // hour with or without a leading zero (02:20 / 2:20), 24h or 12h
+    function hourText(d) {
+        const h = cfg.clock24 ? d.getHours() : (d.getHours() % 12 || 12);
+        return cfg.clockPadHour ? pad2(h) : String(h);
+    }
+    // AM/PM: "normal" and "lower" → pm / am, "upper" → PM / AM
+    function ampmText(d) {
+        const v = d.getHours() >= 12 ? "PM" : "AM";
+        return cfg.clockCase === "upper" ? v : v.toLowerCase();
+    }
+    // short weekday: normal → Tue, upper → TUE, lower → tue
+    function dayText(d) {
+        const v = Qt.formatDate(d, "ddd");
+        return cfg.clockCase === "upper" ? v.toUpperCase()
+             : cfg.clockCase === "lower" ? v.toLowerCase() : v;
+    }
+
     function clockText(d) {
-        const h24 = d.getHours();
-        const h12 = h24 % 12 || 12;
-        const mm = String(d.getMinutes()).padStart(2, "0");
-        const ss = String(d.getSeconds()).padStart(2, "0");
-        if (cfg.clock24)
-            return (cfg.clockSeconds
-                ? String(h24).padStart(2, "0") + ":" + mm + ":" + ss
-                : String(h24).padStart(2, "0") + ":" + mm);
-        const suffix = h24 >= 12 ? "PM" : "AM";
-        return cfg.clockSeconds
-            ? h12 + ":" + mm + ":" + ss + " " + suffix
-            : h12 + ":" + mm + " " + suffix;
+        let t = hourText(d) + ":" + pad2(d.getMinutes());
+        if (cfg.clockSeconds) t += ":" + pad2(d.getSeconds());
+        return cfg.clock24 ? t : t + " " + ampmText(d);
     }
     function clockVText(d) {
-        const h24 = d.getHours();
-        const h = cfg.clock24
-            ? String(h24).padStart(2, "0")
-            : String(h24 % 12 || 12);
-        const mm = String(d.getMinutes()).padStart(2, "0");
-        const parts = [h, mm];
-        if (cfg.clockSeconds)
-            parts.push(String(d.getSeconds()).padStart(2, "0"));
-        if (!cfg.clock24)
-            parts.push(h24 >= 12 ? "PM" : "AM");
+        const parts = [hourText(d), pad2(d.getMinutes())];
+        if (cfg.clockSeconds) parts.push(pad2(d.getSeconds()));
+        if (!cfg.clock24) parts.push(ampmText(d));
         return parts.join("\n");
+    }
+    function clockBarText(d) {
+        const t = clockText(d);
+        if (!cfg.clockDate) return t;
+        return t + "  \u2022  " + (cfg.clockDay ? dayText(d) + ", " : "")
+        + Qt.formatDate(d, cfg.dateOrder === "md" ? "MM/dd" : "dd/MM");
+    }
+    function clockBarVText(d) {
+        const t = clockVText(d);
+        if (!cfg.clockDate) return t;
+        const dd = Qt.formatDate(d, "dd"), mm = Qt.formatDate(d, "MM");
+        return t + "\n\u2022\n" + (cfg.clockDay ? dayText(d) + "\n" : "")
+        + (cfg.dateOrder === "md" ? mm + "\n" + dd : dd + "\n" + mm);
+    }
+    // Full date for the tooltip and the calendar header
+    function longDate(d) {
+        return Qt.formatDate(d, cfg.dateOrder === "md" ? "dddd, MMMM d, yyyy" : "dddd, d MMMM yyyy");
     }
 
     // ───────────────────────── Battery ─────────────────────────
+    // ── TEST MODE ──
+    property bool batTest: false
+    property int batTestPct: 60
+    property bool batTestCharging: false
+
     readonly property var battery: UPower.devices.values.find(d => d.isLaptopBattery)
         ?? (UPower.displayDevice && UPower.displayDevice.isPresent
             && UPower.displayDevice.type === UPowerDeviceType.Battery
             ? UPower.displayDevice : null)
-    readonly property int batPct: battery ? Math.round(battery.percentage * 100) : 0
-    readonly property bool batCharging: battery !== null
-        && (battery.state === UPowerDeviceState.Charging
-            || battery.state === UPowerDeviceState.PendingCharge
-            || battery.state === UPowerDeviceState.FullyCharged)
-    readonly property bool batLow: battery !== null && !batCharging && batPct <= cfg.batLowPct
-    readonly property var batIcons: ["\uf244", "\uf243", "\uf242", "\uf241", "\uf240"]
-    readonly property string batIcon: batIcons[batPct >= 90 ? 4 : batPct >= 65 ? 3 : batPct >= 40 ? 2 : batPct >= 15 ? 1 : 0]
+    readonly property bool hasBattery: batTest || battery !== null
+    readonly property int batPct: batTest ? batTestPct
+                                          : battery ? Math.round(battery.percentage * 100) : 0
+    readonly property bool batCharging: batTest ? batTestCharging
+        : battery !== null
+          && (battery.state === UPowerDeviceState.Charging
+              || battery.state === UPowerDeviceState.PendingCharge
+              || battery.state === UPowerDeviceState.FullyCharged)
+    readonly property bool batLow: hasBattery && !batCharging && batPct <= cfg.batLowPct
+
+    // Vertical battery glyphs, used on horizontal bars (top / bottom):
+    //   nf-md-battery_outline (f008e), nf-md-battery_10 … _90 (f007a … f0082), nf-md-battery (f0079 = full).
+    // Index = charge rounded to the nearest 10 %.
+    readonly property var batGlyphsV: [
+        "\uDB80\uDC8E", "\uDB80\uDC7A", "\uDB80\uDC7B", "\uDB80\uDC7C", "\uDB80\uDC7D", "\uDB80\uDC7E",
+        "\uDB80\uDC7F", "\uDB80\uDC80", "\uDB80\uDC81", "\uDB80\uDC82", "\uDB80\uDC79"
+    ]
+    readonly property string batGlyphV: batGlyphsV[Math.max(0, Math.min(10, Math.round(batPct / 10)))]
 
     function fmtTime(sec) {
         const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
@@ -237,6 +328,8 @@ Scope {
     }
 
     readonly property string batTip: {
+        if (batTest)
+            return "Battery " + batPct + "% · " + (batCharging ? "charging" : "on battery") + " · test mode";
         if (battery === null) return "";
         const t = batCharging ? battery.timeToFull : battery.timeToEmpty;
         const st = battery.state === UPowerDeviceState.FullyCharged ? "fully charged"
@@ -244,6 +337,42 @@ Scope {
         return "Battery " + batPct + "% · " + st
             + (t > 0 ? " · " + fmtTime(t) + (batCharging ? " to full" : " left") : "");
     }
+
+    // ───────────────────────── Bluetooth ─────────────────────────
+    readonly property bool hasBt: Bluetooth.defaultAdapter !== null
+    readonly property bool btOn: Bluetooth.defaultAdapter ? Bluetooth.defaultAdapter.enabled : false
+
+    function btDevices() {
+        const a = Bluetooth.defaultAdapter;
+        if (!a || !a.enabled || !a.devices) return [];
+        return a.devices.values !== undefined ? a.devices.values : a.devices;
+    }
+
+    // "Headphones 80%" for every connected device (battery only when the device reports it)
+    readonly property var btConnectedNames: {
+        const out = [], devs = btDevices();
+        for (let i = 0; i < devs.length; i++) {
+            const d = devs[i];
+            if (d.state !== BluetoothDeviceState.Connected) continue;
+            let n = d.name || d.deviceName || d.address;
+            if (d.batteryAvailable) n += " " + Math.round(d.battery * 100) + "%";
+            out.push(n);
+        }
+        return out;
+    }
+    readonly property bool btConnecting: {
+        const devs = btDevices();
+        for (let i = 0; i < devs.length; i++)
+            if (devs[i].state === BluetoothDeviceState.Connecting) return true;
+        return false;
+    }
+    readonly property string btGlyph: !btOn ? "\uDB80\uDCB2"                           // bluetooth-off
+                                    : btConnectedNames.length > 0 ? "\uDB80\uDCB1"    // bluetooth-connect
+                                    : "\uDB80\uDCAF"                                   // bluetooth
+    readonly property string btTip: !btOn ? "Bluetooth: off"
+        : btConnecting ? "Bluetooth: connecting…"
+        : btConnectedNames.length > 0 ? "Bluetooth: " + btConnectedNames.join(", ")
+        : "Bluetooth: on, no devices connected"
 
     // ───────────────────────── Module registry ─────────────────────────
     // Modules with `cmd` are rendered by the generic iconC component:
@@ -254,14 +383,17 @@ Scope {
         { id: "cpu",      l: "CPU" },
         { id: "ram",      l: "RAM" },
         { id: "gpu",      l: "GPU" },
-        { id: "temp",     l: "Temperatures" },
+        { id: "cputemp",  l: "CPU temperature" },
+        { id: "gputemp",  l: "GPU temperature" },
         { id: "ws",       l: "Workspaces" },
         { id: "tasks",    l: "Open apps" },
         { id: "media",    l: "Media" },
         { id: "volume",   l: "Volume" },
+        { id: "bright",   l: "Brightness" },
+        { id: "night",    l: "Night light" },
         { id: "battery",  l: "Battery" },
-        { id: "net",      l: "Network",       cmd: "qs ipc call settings network",
-                                              hint: "Open network settings" },
+        { id: "bt",       l: "Bluetooth" },
+        { id: "net",      l: "Network" },
         { id: "notif",    l: "Notifications", cmd: "qs ipc call notifications toggle", g: "\uDB80\uDC9C",
                                               tip: "Notifications", hint: "Toggle notification panel" },
         { id: "wall",     l: "Wallpapers",    cmd: "qs -n -p ~/.config/quickshell/hyprquickpaper", g: "\uDB80\uDEE9",
@@ -274,16 +406,21 @@ Scope {
     readonly property var moduleIds: moduleDefs.map(d => d.id)
     readonly property var defMap: moduleDefs.reduce((m, d) => { m[d.id] = d; return m; }, {})
     readonly property var comps: ({
-        cpu: cpuC, ram: ramC, gpu: gpuC, temp: tempC,
-        ws: wsC, tasks: tasksC, media: mediaC, volume: volumeC, battery: batteryC, icon: iconC
+        cpu: cpuC, ram: ramC, gpu: gpuC, cputemp: cpuTempC, gputemp: gpuTempC,
+        ws: wsC, tasks: tasksC, media: mediaC, volume: volumeC,
+        bright: brightC, night: nightC, battery: batteryC,
+        bt: btC, net: netC, icon: iconC
     })
 
-    // The old combined "stats" module is migrated to "cpu" + "ram" in saved configs.
+    // Old combined modules are migrated in saved configs: "stats" → "cpu" + "ram", "temp" → "cputemp" + "gputemp".
     function csv(str) {
         if (str === "") return [];
         const out = [];
         for (const x of str.split(","))
-        x === "stats" ? out.push("cpu", "ram") : out.push(x);
+        x === "stats" ? out.push("cpu", "ram")
+        : x === "temp"  ? out.push("cputemp", "gputemp")
+        : x === "light" ? out.push("bright", "night")
+        : out.push(x);
         return out;
     }
     function valid(id) { return moduleIds.indexOf(id) >= 0; }
@@ -301,27 +438,57 @@ Scope {
         if (!isOn(id)) return false;
         switch (id) {
         case "media":   return Marquee.player !== null && Marquee.title !== "";
-        case "battery": return battery !== null;
+        case "battery": return hasBattery;
+        case "bt":      return hasBt;
         default:        return true;
         }
     }
 
     // sections
     readonly property var startList: csv(cfg.startMods).filter(valid)
+    readonly property var midLeftList: csv(cfg.midLeftMods).filter(valid)
     readonly property var centerList: {
         // The clock is a regular module now: it may live in any section (or be hidden),
         // so the center section can be empty.
         return csv(cfg.centerMods).filter(valid);
     }
+    readonly property var midRightList: csv(cfg.midRightMods).filter(valid)
     readonly property var endList: {
+        // Modules that are not placed anywhere (e.g. newly added ones) fall back to the end section.
         const a = csv(cfg.endMods).filter(valid);
         return a.concat(moduleIds.filter(x =>
-            startList.indexOf(x) < 0 && centerList.indexOf(x) < 0 && a.indexOf(x) < 0));
+            startList.indexOf(x) < 0 && midLeftList.indexOf(x) < 0 && centerList.indexOf(x) < 0
+            && midRightList.indexOf(x) < 0 && a.indexOf(x) < 0));
     }
 
-    function listOf(sec) { return (sec === "start" ? startList : sec === "center" ? centerList : endList).slice(); }
+    function listOf(sec) {
+        return (sec === "start" ? startList
+              : sec === "midLeft" ? midLeftList
+              : sec === "center" ? centerList
+              : sec === "midRight" ? midRightList : endList).slice();
+    }
+    // config keys: startMods · midLeftMods · centerMods · midRightMods · endMods
     function setList(sec, a) { cfg[sec + "Mods"] = a.join(","); }
     function sectionOf(id) { return sections.find(k => listOf(k).indexOf(id) >= 0) ?? "end"; }
+
+    // Modules that share one island. Anything not listed gets its own island.
+    readonly property var statIds: ["cpu", "ram", "gpu", "cputemp", "gputemp"]
+
+    // Splits a section's module list into island groups.
+    // Without the islands style the whole section is one group, so nothing changes.
+    function groupsOf(ids) {
+        if (!islands) return [ids];
+        const out = [];
+        let last = "";
+        for (const id of ids) {
+            if (!isOn(id)) continue;                      // disabled modules never split a group
+            const key = statIds.indexOf(id) >= 0 ? "stats" : id;
+            if (out.length > 0 && key === last) out[out.length - 1].push(id);
+            else out.push([id]);
+            last = key;
+        }
+        return out;
+    }
 
     function moveTo(id, sec) {
         const next = {};
@@ -382,16 +549,41 @@ Scope {
     function openSettings() { run("qs ipc call settings bar"); }
 
     // Shared click actions (clock + settings button binds)
-    // "settings" | "barsettings" | "quickactions" | "none"
+    // "calendar" | "settings" | "barsettings" | "quickactions" | "none"
     function actionHint(a) {
-        return a === "settings" ? "Settings"
+        return a === "calendar" ? "Side panel"
+             : a === "settings" ? "Settings"
              : a === "barsettings" ? "Bar settings"
              : a === "quickactions" ? "Quick actions" : "";
     }
     function doAction(a) {
-        if (a === "settings") run("qs ipc call settings toggle");
+        if (a === "calendar") openSidepanelAt(null);
+        else if (a === "settings") run("qs ipc call settings toggle");
         else if (a === "barsettings") openSettings();
         else if (a === "quickactions") run("qs ipc call qa toggle");
+    }
+
+    // Open SidePanel next to a bar module (normally the clock). Falls back to a
+    // plain toggle when no item is given (e.g. keybind / IPC).
+    // Args match SidePanel's `toggleAt <screen> <position> <along> <edge>`.
+    function openSidepanelAt(item) {
+        if (!item) {
+            Quickshell.execDetached(["qs", "ipc", "call", "sidepanel", "toggle"]);
+            return;
+        }
+        const win = item.QsWindow ? item.QsWindow.window : null;
+        if (!win || !win.screen) {
+            Quickshell.execDetached(["qs", "ipc", "call", "sidepanel", "toggle"]);
+            return;
+        }
+        const c = item.mapToItem(win.contentItem, item.width / 2, item.height / 2);
+        const along = Math.round(root.vertical ? c.y : c.x);
+        // distance from screen edge to the bar's inner edge (matches SidePanel.barEdge)
+        const edge = root.panelThick + root.effEdge;
+        Quickshell.execDetached([
+            "qs", "ipc", "call", "sidepanel", "toggleAt",
+            win.screen.name, cfg.position, String(along), String(edge)
+        ]);
     }
 
     IpcHandler {
@@ -410,198 +602,100 @@ Scope {
             if (root.styles.indexOf(st) >= 0) { cfg.style = st; root.save(); }
         }
         function customize(): void { root.openSettings(); }
+        // section: start | midLeft | center | midRight | end
         function moveModule(id: string, section: string): void {
             if (root.valid(id) && root.sections.indexOf(section) >= 0) { root.moveTo(id, section); root.save(); }
         }
         function shiftModule(id: string, delta: int): void {
             if (root.valid(id)) { root.shiftBy(id, delta); root.save(); }
         }
+
+        // Battery test mode (not saved to the config file)
+        function batteryTest(on: bool): void { root.batTest = on; }
+        function batteryLevel(pct: int): void { root.batTestPct = Math.max(0, Math.min(100, pct)); }
+        function batteryCharging(on: bool): void { root.batTestCharging = on; }
     }
 
     // ───────────────────────── System stats ─────────────────────────
-    property int cpuUsage: 0
-    property int memPercent: 0
-    property real memUsedG: 0
-    property real memTotalG: 0
-    property string netState: "disconnected"
-    property real _prevTotal: 0
-    property real _prevIdle: 0
+    // CPU / memory / GPU / temperatures come from the shared SystemStats singleton
+    // (the settings page reads the same one). The bar only says what it needs;
+    // polling for a reading runs only while a module that shows it is enabled.
+    StatsSubscription { active: root.barVisible && root.isOn("cpu");  keys: ["cpu"] }
+    StatsSubscription { active: root.barVisible && root.isOn("ram");  keys: ["mem"] }
+    StatsSubscription { active: root.barVisible && root.isOn("gpu");  keys: ["gpu"] }
+    StatsSubscription { active: root.barVisible && (root.isOn("cputemp") || root.isOn("gputemp")); keys: ["temp"] }
 
-    // GPU / temperatures (-1 = unavailable)
-    property int gpuUsage: 0
-    property bool gpuHasUsage: false
-    property int cpuTemp: -1
-    property int gpuTempProbe: -1       // from nvidia-smi / sysfs hwmon
-    property int gpuTempSensors: -1     // fallback from `sensors`
-    readonly property int gpuTemp: gpuTempProbe >= 0 ? gpuTempProbe : gpuTempSensors
+    readonly property int cpuUsage: Math.round(SystemStats.cpuUsage)
+    readonly property int memPercent: Math.round(SystemStats.memPercent)
+    readonly property real memUsedG: SystemStats.memUsedG
+    readonly property real memTotalG: SystemStats.memTotalG
+    readonly property int gpuUsage: SystemStats.gpuUsage
+    readonly property bool gpuHasUsage: SystemStats.gpuHasUsage
+    readonly property int cpuTemp: SystemStats.cpuTemp      // -1 = unavailable
+    readonly property int gpuTemp: SystemStats.gpuTemp      // -1 = no sensor (e.g. Intel iGPU) → shown as "–"
 
     function tempText(v) { return v >= 0 ? v + "" : "–"; }
-    function tempTip(name, v) { return v >= 0 ? name + " temperature: " + v + "°C" : name + " temperature: unavailable"; }
+    function tempTip(name, v) {
+        return v >= 0 ? name + " temperature: " + v + "°C" : name + " temperature: no sensor detected";
+    }
+
+    // ───────────────────────── Network ─────────────────────────
+    // netState : "ethernet" | "wifi" | "disconnected"   (what is actually connected)
+    // netName  : name of that connection
+    // wifiOn   : state of the Wi-Fi radio (right click on the module toggles it)
+    property string netState: "disconnected"
+    property string netName: ""
+    property bool wifiOn: true
+
+    // Radio deliberately off and nothing else connected → shown dim instead of red.
+    readonly property bool netOff: !wifiOn && netState === "disconnected"
 
     readonly property string netGlyph: netState === "wifi" ? "\uDB81\uDDA9"
                                      : netState === "ethernet" ? "\uDB80\uDE00" : "\uDB81\uDDAA"
-    readonly property string netTip: netState === "wifi" ? "Wi-Fi connected"
-                                   : netState === "ethernet" ? "Ethernet connected" : "Disconnected"
-
-    FileView {
-        id: statFile
-        path: "/proc/stat"
-        onLoaded: {
-            const f = text().split("\n")[0].trim().split(/\s+/).slice(1, 9).map(Number);
-            const total = f.reduce((a, b) => a + b, 0);
-            const idle = f[3] + f[4];
-            const dT = total - root._prevTotal, dI = idle - root._prevIdle;
-            if (root._prevTotal > 0 && dT > 0) root.cpuUsage = Math.round(100 * (dT - dI) / dT);
-            root._prevTotal = total;
-            root._prevIdle = idle;
-        }
+    readonly property string netTip: {
+        const w = wifiOn ? "" : " · Wi-Fi off";
+        if (netState === "ethernet") return "Ethernet" + (netName !== "" ? ": " + netName : "") + w;
+        if (netState === "wifi") return "Wi-Fi" + (netName !== "" ? ": " + netName : "");
+        return wifiOn ? "Disconnected" : "Wi-Fi: off";
     }
 
-    FileView {
-        id: memFile
-        path: "/proc/meminfo"
-        onLoaded: {
-            const t = text();
-            const kb = k => Number(t.match(new RegExp(k + ":\\s+(\\d+)"))[1]);
-            const total = kb("MemTotal"), used = total - kb("MemAvailable");
-            root.memPercent = Math.round(100 * used / total);
-            root.memUsedG = used / 1048576;
-            root.memTotalG = total / 1048576;
-        }
+    function toggleWifi() {
+        wifiOn = !wifiOn;                                    // instant feedback; the recheck confirms it
+        run("nmcli radio wifi " + (wifiOn ? "on" : "off"));
+        netRecheck.restart();
     }
 
-    // ── GPU probe (vendor-agnostic, no root needed) ──
-    // Prints "<usage%> <tempC>"; a field is "-" when unavailable.
-    //   1. NVIDIA  : nvidia-smi
-    //   2. AMD     : sysfs gpu_busy_percent (largest-VRAM card wins)
-    //   3. Intel   : intel_gpu_top (only if permitted, 3s timeout)
-    //   4. Intel/other fallback: GPU clock estimate (act_freq / max_freq)
-    // Temperature: nvidia-smi, else any DRM card hwmon temp, else `sensors`.
-    readonly property string gpuProbeScript: `
-u=-; t=-
-isnum() { case "$1" in ''|*[!0-9.]*) return 1;; *) return 0;; esac; }
-
-# 1. NVIDIA
-if command -v nvidia-smi >/dev/null 2>&1; then
-  o=$(nvidia-smi --query-gpu=utilization.gpu,temperature.gpu --format=csv,noheader,nounits 2>/dev/null | head -n1)
-  if [ -n "$o" ]; then
-    a=$(echo "$o" | cut -d, -f1 | tr -d ' ')
-    b=$(echo "$o" | cut -d, -f2 | tr -d ' ')
-    isnum "$a" && u="$a"
-    isnum "$b" && t="$b"
-  fi
-fi
-
-# 2. AMD (amdgpu sysfs)
-if [ "$u" = "-" ]; then
-  best=""; bestmem=-1
-  for d in /sys/class/drm/card[0-9]*/device; do
-    [ -r "$d/gpu_busy_percent" ] || continue
-    m=$(cat "$d/mem_info_vram_total" 2>/dev/null || echo 0)
-    isnum "$m" || m=0
-    if [ "$m" -gt "$bestmem" ]; then best="$d"; bestmem="$m"; fi
-  done
-  if [ -n "$best" ]; then
-    a=$(cat "$best/gpu_busy_percent" 2>/dev/null)
-    isnum "$a" && u="$a"
-    if [ "$t" = "-" ]; then
-      for h in "$best"/hwmon/hwmon*/temp1_input; do
-        if [ -r "$h" ]; then t=$(( $(cat "$h") / 1000 )); break; fi
-      done
-    fi
-  fi
-fi
-
-# 3. Intel via intel_gpu_top (needs CAP_PERFMON / root; silently skipped otherwise)
-if [ "$u" = "-" ] && command -v intel_gpu_top >/dev/null 2>&1; then
-    v=$(timeout 4 intel_gpu_top -J -s 1000 -n 2 2>/dev/null | awk 'index($0,"Render/3D"){f=1;next} f==1 && /busy/{x=$0;gsub(/[^0-9.]/,"",x);f=2;next} f==2{if(/sema/)last=x;f=0} END{print last}')
-    isnum "$v" && u="$v"
-fi
-
-# 4. Unprivileged fallback: GPU clock as a load estimate (i915 / xe)
-if [ "$u" = "-" ]; then
-  for c in /sys/class/drm/card[0-9]*; do
-    [ -d "$c" ] || continue
-    for pair in \
-      "$c/gt/gt0/rps_act_freq_mhz:$c/gt/gt0/rps_max_freq_mhz" \
-      "$c/gt/gt0/rps_cur_freq_mhz:$c/gt/gt0/rps_max_freq_mhz" \
-      "$c/gt_act_freq_mhz:$c/gt_max_freq_mhz" \
-      "$c/gt_cur_freq_mhz:$c/gt_max_freq_mhz" \
-      "$c/device/tile0/gt0/freq0/act_freq:$c/device/tile0/gt0/freq0/max_freq"; do
-      f1=\${pair%%:*}; f2=\${pair#*:}
-      [ -r "$f1" ] && [ -r "$f2" ] || continue
-      cur=$(cat "$f1" 2>/dev/null); max=$(cat "$f2" 2>/dev/null)
-      if isnum "$cur" && isnum "$max" && [ "$max" -gt 0 ]; then
-        u=$(( cur * 100 / max )); [ "$u" -gt 100 ] && u=100
-        break 2
-      fi
-    done
-  done
-fi
-
-# Temperature fallback: any DRM card hwmon (i915 / xe / nouveau / amdgpu)
-if [ "$t" = "-" ]; then
-  for h in /sys/class/drm/card[0-9]*/device/hwmon/hwmon*/temp1_input; do
-    if [ -r "$h" ]; then
-      r=$(cat "$h" 2>/dev/null)
-      if isnum "$r"; then t=$(( r / 1000 )); break; fi
-    fi
-  done
-fi
-
-echo "$u $t"
-`
-
-    property real _gpuAvg: -1
-    function updateGpuFromProbe(out) {
-        const p = out.trim().split(/\s+/);
-        const u = parseFloat(p[0]), t = parseFloat(p[1]);
-        gpuHasUsage = !isNaN(u);
-        if (gpuHasUsage) {
-            const v = Math.max(0, Math.min(100, u));
-            _gpuAvg = _gpuAvg < 0 ? v : _gpuAvg * 0.6 + v * 0.4;
-            gpuUsage = Math.round(_gpuAvg);
-        } else {
-            _gpuAvg = -1;
-        }
-        gpuTempProbe = isNaN(t) ? -1 : Math.round(t);
+    function refreshNet() {
+        if (!netProc.running) netProc.running = true;
+        if (!netRadioProc.running) netRadioProc.running = true;
     }
 
-    // First `sensors` line starting with one of the keys (tried in priority order) → °C, or -1.
-    function tempFromSensors(lines, keys) {
-        for (const k of keys) {
-            for (const l of lines) {
-                const line = l.trim();
-                if (line.indexOf(k) !== 0) continue;
-                const m = line.match(/([+-]?\d+(?:\.\d+)?)\s*°/);
-                if (m) return Math.round(parseFloat(m[1]));
-            }
-        }
-        return -1;
-    }
-
-    Process {
-        id: gpuProc
-        command: ["sh", "-c", root.gpuProbeScript]
-        stdout: StdioCollector { onStreamFinished: root.updateGpuFromProbe(text) }
-    }
-
-    Process {
-        // single `sensors` call serves CPU temp and the GPU temp fallback
-        id: sensorsProc
-        command: ["sensors"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = text.split("\n");
-                root.cpuTemp = root.tempFromSensors(lines, ["Package id 0:", "Tctl:", "Tdie:"]);
-                root.gpuTempSensors = root.tempFromSensors(lines, ["GPU Temp:", "edge:", "junction:"]);
-            }
-        }
-    }
+    Timer { id: netRecheck; interval: 900; onTriggered: root.refreshNet() }
 
     // Notification count: the notifications panel persists its history here
     property int notifCount: 0
-    readonly property string notifTip: notifCount > 0 ? "Notifications: " + notifCount : "No notifications"
+    readonly property string notifTip: (notifCount > 0 ? "Notifications: " + notifCount : "No notifications")
+                                       + (notifDnd ? " · Do Not Disturb" : "")
+
+    // Do Not Disturb: owned by SidePanel, which persists it in sidepanel-state.json.
+    // The bar only reads it (to show the state) and toggles it over IPC (right click on the bell).
+    property bool notifDnd: false
+    FileView {
+        id: notifStateFile
+        path: Quickshell.env("HOME") + "/.config/quickshell/state/sidepanel-state.json"
+        printErrors: false
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try { root.notifDnd = JSON.parse(text()).dnd === true; }
+            catch (e) { root.notifDnd = false; }
+        }
+        onLoadFailed: root.notifDnd = false
+    }
+    function toggleDnd() {
+        notifDnd = !notifDnd;                       // instant feedback; the state file confirms it
+        run("qs ipc call notifications dnd");
+    }
 
     FileView {
         id: notifFile
@@ -616,43 +710,124 @@ echo "$u $t"
         onLoadFailed: root.notifCount = 0
     }
 
+    // Connection state + name. Terse lines look like "wifi:connected:MyNet"; ":" inside the name is escaped.
     Process {
         id: netProc
-        command: ["nmcli", "-t", "-f", "TYPE,STATE", "device"]
+        command: ["nmcli", "-t", "-f", "TYPE,STATE,CONNECTION", "device"]
         stdout: StdioCollector {
             onStreamFinished: {
-                let st = "disconnected";
+                let st = "disconnected", name = "";
                 for (const l of text.split("\n")) {
-                    if (l === "ethernet:connected") { st = "ethernet"; break; }
-                    if (l === "wifi:connected") st = "wifi";
+                    const p = l.split(":");
+                    if (p.length < 2) continue;
+                    const n = p.slice(2).join(":").replace(/\\:/g, ":");
+                    if (p[0] === "ethernet" && p[1] === "connected") { st = "ethernet"; name = n; break; }
+                    if (p[0] === "wifi" && p[1] === "connected") { st = "wifi"; name = n; }
                 }
                 if (st !== root.netState) root.netState = st;
+                if (name !== root.netName) root.netName = name;
             }
         }
     }
 
-    // CPU / RAM sampling (only while one of those modules is enabled)
-    Timer {
-        interval: 2000; repeat: true; triggeredOnStart: true
-        running: root.barVisible && (root.isOn("cpu") || root.isOn("ram"))
-        onTriggered: { statFile.reload(); memFile.reload(); }
-    }
-    // GPU usage / temps (only while the GPU or temperature module is enabled)
-    Timer {
-        interval: 2000; repeat: true; triggeredOnStart: true
-        running: root.barVisible && (root.isOn("gpu") || root.isOn("temp"))
-        onTriggered: { if (!gpuProc.running) gpuProc.running = true; }
-    }
-    Timer {
-        interval: 2000; repeat: true; triggeredOnStart: true
-        running: root.barVisible && root.isOn("temp")
-        onTriggered: { if (!sensorsProc.running) sensorsProc.running = true; }
-    }
-    Timer {
-        interval: 10000; running: root.barVisible; repeat: true; triggeredOnStart: true
-        onTriggered: if (!netProc.running) netProc.running = true
+    Process {
+        id: netRadioProc
+        command: ["nmcli", "radio", "wifi"]
+        stdout: StdioCollector {
+            onStreamFinished: root.wifiOn = text.trim() === "enabled"
+        }
     }
 
+    Timer {
+        interval: 10000; running: root.barVisible; repeat: true; triggeredOnStart: true
+        onTriggered: root.refreshNet()
+    }
+// ───────────────────────── Brightness & night light ─────────────────────────
+property real brightness: -1          // 0..1, -1 = no backlight device
+property bool nightOn: false
+property int nightTemp: 4500
+readonly property bool hasBacklight: brightness >= 0
+readonly property int brightPct: Math.round(Math.max(0, brightness) * 100)
+
+readonly property string brightTip: hasBacklight ? "Brightness: " + brightPct + "%"
+                                                 : "Brightness: no backlight detected"
+readonly property string nightTip: "Night light: " + (nightOn ? "on" : "off") + " · " + nightTemp + " K"
+readonly property string lightTip: (hasBacklight ? "Brightness " + brightPct + "% · " : "")
+                                   + "Night light " + (nightOn ? "on" : "off") + " (" + nightTemp + " K)"
+
+function qa(args) { Quickshell.execDetached(["qs", "ipc", "call", "qa"].concat(args)); }
+
+// Brightness is read/written with brightnessctl; absolute values, floor of 1%.
+Process {
+    id: brightProc
+    command: ["brightnessctl", "-m"]
+    stdout: StdioCollector {
+        onStreamFinished: {
+            const p = text.trim().split(",");
+            if (p.length >= 4) {
+                const v = parseInt(p[3]);
+                if (!isNaN(v)) root.brightness = v / 100;
+            }
+        }
+    }
+}
+function refreshBright() { if (!brightProc.running) brightProc.running = true; }
+Timer { id: brightRecheck; interval: 400; onTriggered: root.refreshBright() }
+Timer {
+    interval: 5000; repeat: true; triggeredOnStart: true
+    running: root.barVisible && root.isOn("bright")
+    onTriggered: root.refreshBright()
+}
+
+function brightAdjust(dir) {
+    if (!hasBacklight) return;
+    const step = Math.max(1, cfg.brightStep);
+    const cur = Math.round(brightness * 100);
+    // snap to the step grid, never below 1% so the screen can't go black
+    const next = Math.max(1, Math.min(100, dir > 0 ? (Math.floor(cur / step) + 1) * step
+                                                    : (Math.ceil(cur / step) - 1) * step));
+    brightness = next / 100;                                   // instant feedback
+    Quickshell.execDetached(["brightnessctl", "set", next + "%"]);
+    brightRecheck.restart();
+}// Night light is owned by SidePanel; the bar sends IPC and reads its state file.
+function toggleNight() { nightOn = !nightOn; qa(["nightToggle"]); }
+function nightAdjust(dir) {
+    const delta = dir * Math.max(50, cfg.nightStep);
+    nightTemp = Math.max(2500, Math.min(6500, nightTemp + delta));
+    qa(["nightAdjust", String(delta)]);
+}
+
+FileView {
+    path: Quickshell.env("HOME") + "/.config/quickshell/state/sidepanel-state.json"
+    printErrors: false
+    watchChanges: true
+    onFileChanged: reload()
+    onLoaded: {
+        try {
+            const j = JSON.parse(text());
+            root.nightOn = j.night === true;
+            if (typeof j.nightTemp === "number") root.nightTemp = j.nightTemp;
+        } catch (e) {}
+    }
+}
+
+// one step per wheel notch, also for smooth-scroll devices
+property real brightAcc: 0
+property real nightAcc: 0
+function brightWheel(delta) {
+    brightAcc += delta;
+    if (Math.abs(brightAcc) < 120) return;
+    const dir = brightAcc > 0 ? 1 : -1;
+    brightAcc = 0;
+    brightAdjust(dir);
+}
+function nightWheel(delta) {
+    nightAcc += delta;
+    if (Math.abs(nightAcc) < 120) return;
+    const dir = nightAcc > 0 ? 1 : -1;
+    nightAcc = 0;
+    nightAdjust(dir);
+}
     PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
 
     Process { id: runner }
@@ -675,6 +850,9 @@ echo "$u $t"
     //   Middle click → tertiary action (optional)
     //   Scroll       → adjust a value (optional)
     //   Drag         → move the module (reorder, or drop it in another section)
+    // Connectivity / hardware modules (volume, network, bluetooth) all follow the same pattern:
+    //   Left click   → open that module's page in settings
+    //   Right click  → switch the thing on / off (mute, Wi-Fi radio, Bluetooth power)
     // Hints declared on a module are shown automatically in its tooltip.
     // States: hover · pressed · active (accent) · warning (danger) · disabled.
 
@@ -753,6 +931,7 @@ echo "$u $t"
             active: tp.shown && tp.usable
 
             PopupWindow {
+                readonly property real k: cfg.tooltipScale
                 readonly property var win: tp.target.QsWindow.window
                 readonly property point p: win.contentItem.mapFromItem(tp.target, 0, 0)
 
@@ -764,8 +943,8 @@ echo "$u $t"
                 anchor.rect.y: root.vertical
                     ? p.y + (tp.target.height - implicitHeight) / 2
                     : (cfg.position === "top" ? p.y + tp.target.height + 6 : p.y - implicitHeight - 6)
-                implicitWidth: tcol.implicitWidth + 20
-                implicitHeight: tcol.implicitHeight + 14
+                implicitWidth: tcol.implicitWidth + Math.round(20 * k)
+                implicitHeight: tcol.implicitHeight + Math.round(14 * k)
                 color: "transparent"
                 visible: true
 
@@ -773,19 +952,19 @@ echo "$u $t"
                     anchors.fill: parent
                     radius: Math.min(cfg.radius, height / 2)
                     color: root.bgColor
-                    border.width: 1
+                    border.width: cfg.tooltipBorder ? 1 : 0
                     border.color: root.borderColor
 
                     Column {
                         id: tcol
                         anchors.centerIn: parent
-                        spacing: 3
+                        spacing: Math.round(3 * k)
                         Text {
                             visible: tp.title !== ""
                             text: tp.title
                             color: Theme.text
                             font.family: Theme.iconFont
-                            font.pixelSize: 12
+                            font.pixelSize: Math.max(6, Math.round(12 * k))
                             font.bold: true
                         }
                         Text {
@@ -793,7 +972,7 @@ echo "$u $t"
                             text: tp.hints
                             color: Theme.textDim
                             font.family: Theme.iconFont
-                            font.pixelSize: 11
+                            font.pixelSize: Math.max(6, Math.round(11 * k))
                         }
                     }
                 }
@@ -816,6 +995,7 @@ echo "$u $t"
         property bool interactive: true        // false → informational only (no hover tint / pointer)
         property bool noTip: false             // never show a tooltip for this element
         property bool noSecondary: false       // right click does nothing (and is not listed in the tooltip)
+        property bool noHints: false           // never list click / scroll hints in the tooltip (title only)
         signal primary()
         signal secondary()
         signal tertiary()
@@ -824,7 +1004,7 @@ echo "$u $t"
         readonly property bool hovered: ma.containsMouse && !disabled
         readonly property string hintText: {
             if (disabled) return disabledReason;
-            if (!cfg.tooltipHints) return "";
+            if (!cfg.tooltipHints || noHints) return "";
             const l = [];
             if (primaryHint !== "") l.push("Left click: " + primaryHint);
             if (!noSecondary) l.push("Right click: " + (secondaryHint !== "" ? secondaryHint : "Quick actions"));
@@ -842,23 +1022,17 @@ echo "$u $t"
         opacity: disabled ? 0.4 : 1
         Behavior on opacity { NumberAnimation { duration: 120 } }
 
-        // state layer: pressed > active > warning, with a hover overlay
+        // state layer: pressed / active / warning only — hover background always transparent
         Rectangle {
             anchors.fill: parent
             anchors.margins: 1
+            anchors.verticalCenterOffset: 3
             radius: Theme.radius
             color: ma.pressed && it.interactive && !it.disabled ? Qt.alpha(Theme.accent, 0.35)
-                 : it.active ? Qt.alpha(Theme.accent, 0.22)
+                 : it.active ? Qt.alpha(Theme.accent, 0)
                  : it.warning ? Qt.alpha(Theme.danger, 0.16)
-                 : Qt.alpha(Theme.text, 0)
+                 : "transparent"
             Behavior on color { ColorAnimation { duration: 100 } }
-
-            Rectangle {
-                anchors.fill: parent
-                radius: parent.radius
-                color: it.hovered && it.interactive ? Qt.alpha(Theme.text, 0.1) : Qt.alpha(Theme.text, 0)
-                Behavior on color { ColorAnimation { duration: 100 } }
-            }
         }
 
         DMouseArea {
@@ -889,7 +1063,15 @@ echo "$u $t"
         }
     }
 
-    // Icon / text module built on Interactive
+    // Icon / text module built on Interactive.
+    //
+    // ── Positioning ─────────────────────────────────────────────────────────
+    // Four independent nudges (px, positive x = right, positive y = down). None of them
+    // changes the module's size, so nothing else on the bar moves:
+    //   xOffset / yOffset  → icon AND text together   (yOffset is ignored on vertical bars)
+    //   iconX   / iconY    → ONLY the icon (glyph or custom-drawn icon)
+    //   textX   / textY    → ONLY the text
+    // Because icon and text are nudged separately, moving the icon never drags its text along.
     component Mod: Interactive {
         id: mod
         property string mid: ""          // set by Slot; used by generic icon modules
@@ -897,14 +1079,19 @@ echo "$u $t"
         property string vtext: text
         property string glyph: ""
         property string vglyph: glyph
+        property Component iconComp: null   // optional custom-drawn icon (e.g. the battery), shown before the glyph
         property real glyphSize: 16
         property real baseSize: 11
         property color color: Theme.text
         property bool bold: false
-        property real yOffset: 0
-        property real glyphScaleY: 1.0
+        property real xOffset: 0         // icon + text together (negative → left)
+        property real yOffset: 0         // icon + text together, horizontal bars only
+        property real iconX: 0           // icon only
+        property real iconY: 0
+        property real textX: 0           // text only
+        property real textY: 0
         property int spacing: root.sizeIconGap
-        property int padX: cfg.modPad
+        property int padX: root.modPadPx
 
         readonly property color fg: warning ? Theme.danger : active ? Theme.accent : color
         readonly property string shown: root.vertical ? vtext : text
@@ -912,17 +1099,24 @@ echo "$u $t"
 
         Layout.alignment: Qt.AlignCenter
         implicitWidth: root.vertical ? root.panelThick : content.implicitWidth + padX
-        implicitHeight: root.vertical ? Math.max(20, content.implicitHeight + 8)
+        implicitHeight: root.vertical ? Math.max(20, content.implicitHeight + Math.round(padX * 0.4))
                                       : Math.max(root.panelThick - 2, content.implicitHeight)
-
         GridLayout {
             id: content
             anchors.centerIn: parent
             anchors.verticalCenterOffset: root.vertical ? 0 : mod.yOffset
+            anchors.horizontalCenterOffset: mod.xOffset
             flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
             rowSpacing: 2
             columnSpacing: mod.spacing
 
+            Loader {
+                active: mod.iconComp !== null
+                visible: active
+                Layout.alignment: Qt.AlignCenter
+                sourceComponent: mod.iconComp
+                transform: Translate { x: mod.iconX; y: mod.iconY }
+            }
             Text {
                 visible: mod.shownGlyph !== ""
                 Layout.alignment: Qt.AlignCenter
@@ -932,10 +1126,7 @@ echo "$u $t"
                 font.family: Theme.iconFont
                 font.pixelSize: mod.glyphSize
                 renderType: Text.NativeRendering
-                transform: Scale {
-                    yScale: mod.glyphScaleY
-                    origin.y: height / 2
-                }
+                transform: Translate { x: mod.iconX; y: mod.iconY }
             }
             Text {
                 visible: mod.shown !== ""
@@ -947,37 +1138,80 @@ echo "$u $t"
                 font.bold: mod.bold
                 font.pixelSize: mod.baseSize
                 renderType: Text.NativeRendering
+                transform: Translate { x: mod.textX; y: mod.textY }
             }
         }
     }
 
     // Rounded stat badge (CPU / RAM / GPU / temperatures), informational only.
     // Capsule with label + value ("CPU 12" / stacked on vertical bars).
+    // With the "icons" option on, a glyph replaces the text label.
     // `unit` ("%" or "°C") is appended when the "show unit symbols" option is on.
     component StatBadge: Interactive {
         id: stat
+        anchors.verticalCenterOffset: 1
         property string label: ""
+        property string icon: ""          // Nerd Font glyph; used instead of `label` when the option is on
+        property string iconFont: Theme.iconFont   // badges can override this for their glyph
         property string valueText: ""
         property string unit: ""
+        readonly property bool useIcon: cfg.statsIcons && icon !== ""
+        readonly property string shownLabel: useIcon ? icon : label
         readonly property string shownValue: valueText + (cfg.statsPercent ? unit : "")
         readonly property color fg: warning ? Theme.danger : Theme.text
-        readonly property int fontPx: Math.max(6, Math.round(root.sz.taskIcon * 0.5 * cfg.statsScale))
+
+        // ── Never outgrow the bar ──
+        // Badge follows the text size and is always clamped to maxCross.
+        // statsScale never changes the bar thickness.
+        // Base ≈ 10px at scale/barScale 1.0; statsScale 1.0 is a comfortable default.
+        readonly property int maxCross: Math.max(8, root.panelThick - (cfg.border ? 2 : 0))
+        readonly property int crossPad: root.vertical ? 8 : 6
+        readonly property int wantedPx: Math.max(4, Math.round(10 * cfg.statsScale * cfg.scale * cfg.barScale))
+        readonly property int labelWantedPx: useIcon ? wantedPx + 2 : Math.max(4, wantedPx - 1)
+        // worst-case value ("100" / "100%") so the font does not jump while the numbers change
+        readonly property string sampleValue: "100" + (cfg.statsPercent ? "%" : "")
+        readonly property real contentCross: root.vertical
+            ? Math.max(mLabel.width, mValue.width)
+            : Math.max(mLabel.height, mValue.height)
+        // shrink text only when the wanted size would exceed the bar
+        readonly property int fontPx: contentCross + crossPad > maxCross
+            ? Math.max(4, Math.floor(wantedPx * (maxCross - crossPad) / contentCross))
+            : wantedPx
+
+        TextMetrics {
+            id: mLabel
+            text: stat.shownLabel
+            font.family: stat.useIcon ? stat.iconFont : Theme.iconFont
+            font.pixelSize: stat.labelWantedPx
+        }
+        TextMetrics {
+            id: mValue
+            text: stat.sampleValue
+            font.family: Theme.iconFont
+            font.bold: true
+            font.pixelSize: stat.wantedPx
+        }
 
         Layout.alignment: Qt.AlignCenter
-        implicitWidth: root.vertical ? root.panelThick : badge.width + 8
-        implicitHeight: root.vertical ? badge.height + 8
-                                      : Math.max(root.panelThick - 2, badge.height + 6)
+        implicitWidth: root.vertical ? root.panelThick : badge.width + cfg.statsGap
+        // stay inside the bar thickness; never expand it
+        implicitHeight: root.vertical ? badge.height + cfg.statsGap
+                                      : Math.min(root.panelThick, Math.max(root.panelThick - 2, badge.height + 4))
         interactive: false
 
         Rectangle {
             id: badge
             anchors.centerIn: parent
-            width: root.vertical ? Math.max(root.sz.taskIcon + 6, statRow.implicitWidth + 8)
-                                 : statRow.implicitWidth + 14
-            height: root.vertical ? statRow.implicitHeight + 10
-                                  : Math.max(root.sz.taskIcon, statRow.implicitHeight + 6)
-            radius: Math.min(width, height) / 2
-            color: Qt.alpha(stat.fg, 0.045)
+            // size follows the text (with padding); always clamped to the bar cross-section
+            width: root.vertical
+                   ? Math.min(stat.maxCross, statRow.implicitWidth + 8)
+                   : statRow.implicitWidth + 12
+            height: root.vertical
+                    ? statRow.implicitHeight + 8
+                    : Math.min(stat.maxCross, statRow.implicitHeight + 4)
+            clip: true
+            radius: Math.min(cfg.statsRadius, Math.min(width, height) / 2)
+            color: "transparent"
             border.width: cfg.statsBorder ? 1 : 0
             border.color: Qt.alpha(stat.fg, 0.18)
 
@@ -986,21 +1220,21 @@ echo "$u $t"
                 anchors.centerIn: parent
                 flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
                 rowSpacing: 0
-                columnSpacing: 4
+                columnSpacing: 3
 
                 Text {
                     Layout.alignment: Qt.AlignCenter
-                    text: stat.label
+                    text: stat.shownLabel
                     color: Qt.alpha(stat.fg, 0.75)
-                    font.family: Theme.iconFont
-                    font.pixelSize: stat.fontPx - 1
+                    font.family: stat.useIcon ? stat.iconFont : Theme.iconFont
+                    font.pixelSize: stat.useIcon ? stat.fontPx + 2 : Math.max(4, stat.fontPx - 1)
                     renderType: Text.NativeRendering
                 }
                 Text {
                     Layout.alignment: Qt.AlignCenter
                     text: stat.shownValue
                     color: stat.fg
-                    font.family: Theme.iconFont
+                    font.family: stat.useIcon ? stat.iconFont : Theme.iconFont
                     font.bold: true
                     font.pixelSize: stat.fontPx
                     renderType: Text.NativeRendering
@@ -1008,7 +1242,32 @@ echo "$u $t"
             }
         }
     }
-
+    // Tiny level pill. Lies across the bar on vertical bars, stands upright on horizontal ones.
+    component MiniBar: Item {
+        id: mb
+        property real level: 0                 // 0..1
+        property color col: Theme.text
+        readonly property int len: Math.round(root.sz.icon * 0.8)
+        readonly property int thick: Math.max(3, Math.round(root.sz.icon * 0.3))
+        implicitWidth: root.vertical ? len : thick
+        implicitHeight: root.vertical ? thick : len
+        Rectangle {
+            id: track
+            anchors.fill: parent
+            radius: Math.min(width, height) / 2
+            color: Qt.alpha(mb.col, 0.25)
+            }
+        Rectangle {
+            readonly property int fill: mb.level > 0
+            ? Math.max(mb.thick, Math.round(mb.len * Math.min(1, mb.level))) : 0
+            width: root.vertical ? fill : track.width
+            height: root.vertical ? track.height : fill
+            x: 0
+            y: root.vertical ? 0 : track.height - height
+            radius: Math.min(width, height) / 2
+            color: mb.col
+        }
+    }
     // Container for one module. Also owns the drag state while the module is being dragged:
     // the module follows the pointer visually (transform only, layout is untouched) and,
     // on release, `droppedAt` tells the bar where it was dropped.
@@ -1045,7 +1304,8 @@ echo "$u $t"
         onLoaded: if (item.mid !== undefined) item.mid = modelData
     }
 
-    // One of the three bar sections: a rounded panel holding a Lane of Slots
+    // One of the five bar sections: a panel holding a Lane of islands.
+    // Outside the islands style there is a single, invisible island that wraps the whole section.
     component Panel: Rectangle {
         id: panel
         property var model: []
@@ -1059,24 +1319,57 @@ echo "$u $t"
         // (e.g. re-enabling the clock in an otherwise empty section).
         readonly property bool hasVisible: model.some(id => root.modVisible(id))
         visible: hasVisible
-        z: dragActive ? 100 : 0                  // keep the dragged module above the other panels
-        width: root.vertical ? root.panelThick : laneItem.implicitWidth + 4
-        height: root.vertical ? laneItem.implicitHeight + 4 : root.panelThick
+        z: dragActive ? 100 : 0
+        width: root.vertical ? root.panelThick : laneItem.implicitWidth + (root.islands ? 0 : 4)
+        height: root.vertical ? laneItem.implicitHeight + (root.islands ? 0 : 4) : root.panelThick
         radius: root.barRadius
-        color: root.joined ? "transparent" : root.bgColor
-        border.width: cfg.border && !root.joined ? 1 : 0
+        color: root.joined || root.islands ? "transparent" : root.bgColor
+        border.width: cfg.border && !root.joined && !root.islands ? 1 : 0
         border.color: root.borderColor
 
         Lane {
             id: laneItem
             anchors.centerIn: parent
+            gap: root.islands ? root.effGap : 0
+
             Repeater {
-                model: panel.model
-                delegate: Slot {
-                    id: slotD
-                    clockComp: panel.clockComp
-                    onDroppedAt: (sx, sy) => panel.dropped(slotD.modelData, sx, sy)
-                    onDraggingChanged: panel.dragActive = dragging
+                model: root.groupsOf(panel.model)
+
+                // One island: a rounded background holding one or more Slots.
+                delegate: Rectangle {
+                    id: isl
+                    required property var modelData
+                    readonly property Item lane: islLane
+                    readonly property int pad: root.islands ? 4 : 0
+                    property bool dragActive: false
+
+                    // Must not depend on the lane's size (see the note above).
+                    visible: modelData.some(id => root.modVisible(id))
+                    z: dragActive ? 100 : 0
+                    Layout.alignment: Qt.AlignCenter
+                    implicitWidth: root.vertical ? root.panelThick : islLane.implicitWidth + pad
+                    implicitHeight: root.vertical ? islLane.implicitHeight + pad : root.panelThick
+                    radius: root.barRadius
+                    color: root.islands ? root.bgColor : "transparent"
+                    border.width: root.islands && cfg.border ? 1 : 0
+                    border.color: root.borderColor
+
+                    onDragActiveChanged: panel.dragActive = dragActive
+
+                    Lane {
+                        id: islLane
+                        anchors.centerIn: parent
+
+                        Repeater {
+                            model: isl.modelData
+                            delegate: Slot {
+                                id: slotD
+                                clockComp: panel.clockComp
+                                onDroppedAt: (sx, sy) => panel.dropped(slotD.modelData, sx, sy)
+                                onDraggingChanged: isl.dragActive = dragging
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1092,8 +1385,8 @@ echo "$u $t"
         id: ar
         property string glyph: ""
         signal clicked()
-        width: 28
-        height: 26
+        width: root.cl(28)
+        height: root.cl(26)
         Text {
             anchors.centerIn: parent
             text: ar.glyph
@@ -1139,30 +1432,36 @@ echo "$u $t"
     }
 
     // ───────────────────────── Module components ─────────────────────────
-    // Generic icon button: net / notif / wall / settings / power (driven by moduleDefs)
+    // Generic icon button: notif / wall / settings / power (driven by moduleDefs)
     Component {
         id: iconC
         Mod {
             id: ic
             property var def: root.defMap[mid] ?? ({})
-            readonly property bool isNet: mid === "net"
             readonly property bool isNotif: mid === "notif"
             readonly property bool isSettings: mid === "settings"
-            baseSize: mid === "power" ? root.sz.power - 1 : root.sz.icon
-            yOffset: mid === "power" ? 0 : root.iconYOffset
-            text: isNet ? root.netGlyph : (def.g ?? "")
-            tip: isNet ? root.netTip : mid === "notif" ? root.notifTip : (def.tip ?? "")
+            // icons 2px smaller; power nudged down so it lines up with volume/battery text
+            baseSize: mid === "power" ? root.sz.power - 3 : root.sz.icon - 2
+            yOffset: mid === "power" ? root.iconYOffset
+                   : isNotif && !root.vertical ? root.iconYOffset - 0.5
+                   : root.iconYOffset
+            xOffset: !root.vertical ? 0 : (isNotif || mid === "power" || isSettings) ? -1 : 0
+            text: isNotif && root.notifDnd ? "\uec08" : (def.g ?? "")
+            tip: isNotif ? root.notifTip : (def.tip ?? "")
             // The settings button has configurable click binds (see Bar page → Settings button)
             primaryHint: isSettings ? root.actionHint(cfg.settingsPrimary) : (def.hint ?? "")
-            secondaryHint: isSettings ? root.actionHint(cfg.settingsSecondary) : ""
+            secondaryHint: isSettings ? root.actionHint(cfg.settingsSecondary)
+                         : isNotif ? (root.notifDnd ? "Turn off Do Not Disturb" : "Turn on Do Not Disturb") : ""
             tertiaryHint: isSettings ? root.actionHint(cfg.settingsTertiary) : ""
             noSecondary: isSettings && cfg.settingsSecondary === "none"
-            warning: isNet && root.netState === "disconnected"
             onPrimary: {
                 if (isSettings) root.doAction(cfg.settingsPrimary);
                 else if (def.cmd) root.run(def.cmd);
             }
-            onSecondary: if (isSettings) root.doAction(cfg.settingsSecondary)
+            onSecondary: {
+                if (isSettings) root.doAction(cfg.settingsSecondary);
+                else if (isNotif) root.toggleDnd();
+            }
             onTertiary: if (isSettings) root.doAction(cfg.settingsTertiary)
 
             // Notification count badge (top-right of the icon)
@@ -1191,11 +1490,55 @@ echo "$u $t"
         }
     }
 
+    // Network: icon only.
+    //   Left click  → network settings
+    //   Right click → Wi-Fi radio on / off
+    // Dim = Wi-Fi off and nothing connected, red = radio on but not connected, normal = connected.
+    Component {
+        id: netC
+        Mod {
+            glyphSize: root.sz.icon - 2
+            xOffset: root.vertical ? -1 : 0
+            yOffset: root.iconYOffset
+            glyph: root.netGlyph
+            color: root.netOff ? Theme.textDim : Theme.text
+            warning: root.netState === "disconnected" && root.wifiOn
+            tip: root.netTip
+            primaryHint: "Open network settings"
+            secondaryHint: root.wifiOn ? "Turn Wi-Fi off" : "Turn Wi-Fi on"
+            onPrimary: root.run("qs ipc call settings network")
+            onSecondary: root.toggleWifi()
+        }
+    }
+
+    // Bluetooth: icon only.
+    //   Left click  → Bluetooth settings
+    //   Right click → Bluetooth power on / off (shared with the quick actions menu via BluetoothState)
+    // Dim = off, normal = on, accent = at least one device connected.
+    Component {
+        id: btC
+        Mod {
+            glyphSize: root.sz.icon - 2
+            xOffset: root.vertical ? -1 : 0
+            yOffset: root.iconYOffset
+            glyph: root.btGlyph
+            color: !root.btOn ? Theme.textDim
+                 : root.btConnectedNames.length > 0 ? Theme.accent : Theme.text
+            disabled: !root.hasBt
+            disabledReason: "No Bluetooth adapter"
+            tip: root.btTip
+            primaryHint: "Open Bluetooth settings"
+            secondaryHint: root.btOn ? "Turn Bluetooth off" : "Turn Bluetooth on"
+            onPrimary: root.run("qs ipc call settings bluetooth")
+            onSecondary: BluetoothState.togglePower()
+        }
+    }
+
     // CPU usage
     Component {
         id: cpuC
         StatBadge {
-            label: "CPU"
+            label: "CPU"; icon: "\uEF8E"; iconFont: Theme.tablerFont
             unit: "%"
             valueText: String(root.cpuUsage)
             warning: root.cpuUsage >= cfg.statsWarn
@@ -1207,7 +1550,7 @@ echo "$u $t"
     Component {
         id: ramC
         StatBadge {
-            label: "RAM"
+            label: "RAM"; icon: "\uD800\uDEB7"; iconFont: Theme.tablerFont
             unit: "%"
             valueText: String(root.memPercent)
             warning: root.memPercent >= cfg.statsWarn
@@ -1220,7 +1563,7 @@ echo "$u $t"
     Component {
         id: gpuC
         StatBadge {
-            label: "GPU"
+            label: "GPU"; icon: "\uD800\uDE99"; iconFont: Theme.tablerFont
             unit: root.gpuHasUsage ? "%" : ""
             valueText: root.gpuHasUsage ? String(root.gpuUsage) : "–"
             warning: root.gpuHasUsage && root.gpuUsage >= cfg.statsWarn
@@ -1228,18 +1571,27 @@ echo "$u $t"
         }
     }
 
-    // CPU + GPU temperatures (two badges)
+    // CPU temperature. The unit is "°C" when the symbols option is on.
     Component {
-        id: tempC
-        Lane {
-            gap: 2
-            StatBadge {
-                label: "TEMP"
-                unit: root.cpuTemp >= 0 ? "°" : ""
-                valueText: root.tempText(root.cpuTemp)
-                warning: root.cpuTemp >= cfg.tempWarn
-                tip: root.tempTip("CPU", root.cpuTemp)
-            }
+        id: cpuTempC
+        StatBadge {
+            label: "CPUT"; icon: "\uEB38"; iconFont: Theme.tablerFont
+            unit: root.cpuTemp >= 0 ? "°C" : ""
+            valueText: root.tempText(root.cpuTemp)
+            warning: root.cpuTemp >= cfg.tempWarn
+            tip: root.tempTip("CPU", root.cpuTemp)
+        }
+    }
+
+    // GPU temperature ("–" + "no sensor detected" when the GPU has no sensor, e.g. Intel iGPUs).
+    Component {
+        id: gpuTempC
+        StatBadge {
+            label: "GPUT"; icon: "\uEB38"; iconFont: Theme.tablerFont
+            unit: root.gpuTemp >= 0 ? "°C" : ""
+            valueText: root.tempText(root.gpuTemp)
+            warning: root.gpuTemp >= cfg.tempWarn
+            tip: root.tempTip("GPU", root.gpuTemp)
         }
     }
 
@@ -1252,7 +1604,7 @@ echo "$u $t"
             Lane {
                 id: wsLane
                 anchors.centerIn: parent
-                gap: cfg.wsGap
+                gap: root.wsGapPx
 
                 Repeater {
                     model: Hyprland.workspaces
@@ -1261,18 +1613,32 @@ echo "$u $t"
                         required property var modelData
                         visible: modelData.id > 0
                         Layout.alignment: Qt.AlignCenter
-                        implicitWidth: root.vertical ? cfg.wsDot
-                                     : (modelData.focused ? Math.round(cfg.wsDot * 3.2) : cfg.wsDot)
-                        implicitHeight: root.vertical ? (modelData.focused ? Math.round(cfg.wsDot * 2.4) : cfg.wsDot)
-                                                      : cfg.wsDot
-                        radius: cfg.wsDot / 2
+                        implicitWidth: root.vertical ? root.wsBoxPx
+                                     : (modelData.focused && !cfg.wsNumbers ? Math.round(root.wsBoxPx * 3.2) : root.wsBoxPx)
+                        implicitHeight: root.vertical ? (modelData.focused && !cfg.wsNumbers ? Math.round(root.wsBoxPx * 2.4) : root.wsBoxPx)
+                                                      : root.wsBoxPx
+                        radius: root.wsBoxPx / 2
                         color: modelData.urgent ? Theme.danger
-                             : modelData.focused ? Qt.alpha(Theme.accent, 0.2)
-                             : dotMa.containsMouse ? Theme.accent2
-                             : Qt.alpha(Theme.textFaint, 0.5)
+                        : modelData.focused ? Qt.alpha(Theme.accent2, 0.5)
+                        : dotMa.containsMouse ? Theme.accent2
+                        : Qt.alpha(Theme.text, 0.2)
 
                         Behavior on implicitWidth { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutQuad } }
                         Behavior on implicitHeight { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutQuad } }
+
+                        // workspace number (only instantiated while the option is on)
+                        Loader {
+                            anchors.centerIn: parent
+                            active: cfg.wsNumbers
+                            sourceComponent: Text {
+                                text: dot.modelData.id
+                                color: Theme.text
+                                font.family: Theme.iconFont
+                                font.pixelSize: Math.round(root.wsBoxPx * 0.62)
+                                font.bold: dot.modelData.focused
+                                renderType: Text.NativeRendering
+                            }
+                        }
 
                         DMouseArea {
                             id: dotMa
@@ -1308,22 +1674,25 @@ echo "$u $t"
         }
     }
 
-    // Open apps — icons resolved by root.iconFor() so every app gets one
+    // Open apps — icons resolved by root.iconFor() so every app gets one.
+    // Options (Bar page → Open apps): icon scale, spacing, normal / accent colour.
     Component {
         id: tasksC
         Lane {
-            gap: 2
+            gap: root.taskGapPx
             Repeater {
                 model: ToplevelManager.toplevels
                 delegate: Interactive {
                     id: task
                     required property var modelData
                     Layout.alignment: Qt.AlignCenter
-                    implicitWidth: root.vertical ? root.panelThick : root.sz.taskIcon + 10
-                    implicitHeight: root.vertical ? root.sz.taskIcon + 10
-                                                  : Math.max(root.panelThick - 2, root.sz.taskIcon + 6)
+                    implicitWidth: root.vertical ? root.panelThick : root.taskIconPx + 10
+                    implicitHeight: root.vertical ? root.taskIconPx + 10
+                                                  : Math.max(root.panelThick - 2, root.taskIconPx + 6)
                     active: modelData.activated
-                    tip: modelData.title !== "" ? modelData.title : modelData.appId
+                    // minimal tooltip: just the app name, no hint lines
+                    tip: root.appName(modelData.appId)
+                    noHints: true
                     primaryHint: "Focus window"
                     tertiaryHint: "Close window"
                     onPrimary: modelData.activate()
@@ -1331,21 +1700,22 @@ echo "$u $t"
                     Image {
                         id: appIcon
                         anchors.centerIn: parent
-                        width: root.sz.taskIcon
-                        height: root.sz.taskIcon
+                        width: root.taskIconPx
+                        height: root.taskIconPx
                         sourceSize: Qt.size(width, height)
                         asynchronous: true
                         smooth: true
                         visible: false          // rendered through the tint effect below
                         source: root.iconFor(task.modelData.appId)
                     }
-                    // Flat monochrome icon in Theme.text (accent when the window is focused)
+                    // "normal": the app's own icon colours.
+                    // "accent": flat monochrome icon in Theme.text (accent2 when the window is focused).
                     MultiEffect {
                         anchors.fill: appIcon
                         source: appIcon
-                        colorization: 1.0
+                        colorization: cfg.tasksColor === "accent" ? 1.0 : 0.0
                         colorizationColor: task.modelData.activated ? Theme.accent2 : Theme.text
-                        opacity: task.modelData.activated ? 1 : 0.75
+                        opacity: task.modelData.activated ? 1 : 0.5
                     }
                 }
             }
@@ -1378,47 +1748,228 @@ echo "$u $t"
         }
     }
 
+    // Volume: speaker glyph + optional level text.
     Component {
         id: volumeC
         Mod {
+            id: vol
             readonly property var sink: Pipewire.defaultAudioSink
             readonly property bool ready: !!(sink && sink.audio)
-            readonly property real vol: ready ? sink.audio.volume : 0
+            readonly property real level: ready ? sink.audio.volume : 0
             readonly property bool muted: ready ? sink.audio.muted : false
 
-            glyphSize: root.sz.icon
-            yOffset: root.iconYOffset + 0.25
-            glyph: muted || vol <= 0 ? "\uDB81\uDF5F" : "\uDB81\uDD7E"
+            // ── Alignment: one set of numbers per bar layout ─────────────────────
+            //   x / y         → icon + text together (y only has an effect on horizontal bars)
+            //   iconX / iconY → icon only
+            //   textX / textY → text only (the icon stays where it is)
+            readonly property var tune: root.vertical
+                ? ({ x: -1, y: 0,                         iconX: 0, iconY: 0, textX: 0, textY: -1 })   // left / right bar
+                : ({ x: 0,  y: root.iconYOffset + 0.25,   iconX: 0, iconY: 0, textX: 0, textY: -1 })   // top / bottom bar
+            xOffset: tune.x
+            yOffset: tune.y
+            iconX: tune.iconX
+            iconY: tune.iconY
+            textX: tune.textX
+            textY: tune.textY
+
+            glyphSize: root.sz.icon - 2
+            baseSize: root.sz.batText
+            spacing: Math.round(4 * root.bs)
+            // muted / silent → speaker with a slash (nf-md-volume_off); otherwise nf-md-volume_high
+            glyph: muted || level <= 0 ? "\uDB81\uDD81" : "\uDB81\uDD7E"
+            // optional level next to the icon (+ "%" when the symbol option is on)
+            text: cfg.volNumber && ready
+                  ? String(muted ? 0 : Math.round(level * 100)) + (cfg.volPercent ? "%" : "")
+                  : ""
             warning: muted
             disabled: !ready
             disabledReason: "No audio output available"
-            tip: !ready ? "Volume" : muted ? "Volume: muted" : "Volume: " + Math.round(vol * 100) + "%"
+            tip: !ready ? "Volume" : muted ? "Volume: muted" : "Volume: " + Math.round(level * 100) + "%"
             primaryHint: "Open sound settings"
             secondaryHint: "Mute / unmute"
             scrollHint: "Adjust volume"
 
             onPrimary: root.run("qs ipc call settings sound")
             onSecondary: root.run("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")
+            property real wheelAcc: 0
             onScrolled: delta => {
                 if (!ready) return;
-                sink.audio.volume = Math.max(0, Math.min(cfg.volMax / 100,
-                    sink.audio.volume + (delta / 120) * (cfg.volStep / 100)));
+                // accumulate so smooth-scroll devices still give exactly one step per notch
+                wheelAcc += delta;
+                if (Math.abs(wheelAcc) < 120) return;
+                const dir = wheelAcc > 0 ? 1 : -1;
+                wheelAcc = 0;
+                const step = Math.max(1, cfg.volStep);
+                const max = cfg.volMax;
+                const cur = Math.round(sink.audio.volume * 100);
+                // snap to the step grid: 0, 3, 6, 9 ... (not 0, 3, 7, 11 ...)
+                let next = dir > 0 ? (Math.floor(cur / step) + 1) * step
+                                   : (Math.ceil(cur / step) - 1) * step;
+                next = Math.max(0, Math.min(max, next));
+                sink.audio.volume = next / 100;
             }
         }
     }
 
+    // Battery: two looks, chosen by the bar layout.
+    //   vertical bar   (left / right) → a drawn HORIZONTAL battery whose fill bar follows the charge
+    //   horizontal bar (top / bottom) → a VERTICAL battery glyph (nf-md-battery_10 … _90)
+    // The icon item is as tall as the volume glyph, so the optional percentage text sits
+    // on exactly the same line as the volume text.
     Component {
         id: batteryC
         Mod {
-            glyphSize: root.sz.icon
-            glyphScaleY: 1.12
-            yOffset: root.iconYOffset
-            glyph: root.batIcon
+            id: bat
+
+            // ── Alignment: one set of numbers per bar layout ─────────────────────
+            //   x / y         → icon + text together (y only has an effect on horizontal bars)
+            //   iconX / iconY → icon only
+            //   textX / textY → text only (the icon stays where it is)
+            // Positive x = right, positive y = down. Moving an icon never moves its text.
+            readonly property var tune: root.vertical
+                // left / right bar → drawn horizontal battery
+                ? ({ x: 0, y: 0,                        iconX: 0, iconY: 0, textX: 0, textY: -1 })
+                // top / bottom bar → vertical battery glyph
+                // (y stays at the shared baseline so the text doesn't move; only iconY lifts the glyph)
+                : ({ x: 0, y: root.iconYOffset + 0.25,  iconX: 0, iconY: -1.25, textX: 0, textY: -1 })
+            xOffset: tune.x
+            yOffset: tune.y
+            iconX: tune.iconX
+            iconY: tune.iconY
+            textX: tune.textX
+            textY: tune.textY
+
+            glyphSize: root.sz.icon - 2
+            baseSize: root.sz.batText
+            spacing: Math.round(4 * root.bs)
+
+            // horizontal bar → vertical glyph; vertical bar → drawn icon below
+            glyph: root.vertical ? "" : root.batGlyphV
+            iconComp: root.vertical ? batHoriz : null
+
+            // optional percentage next to the icon (+ "%" when the symbol option is on)
+            text: cfg.batNumber ? String(root.batPct) + (cfg.batPercent ? "%" : "") : ""
             warning: root.batLow
             tip: root.batTip
+
+            Component {
+                id: batHoriz
+                Item {
+                    id: ico
+                    transform: Scale {
+                        xScale: 0.9
+                        yScale: 1.0
+                        origin.x: ico.width / 2
+                        origin.y: ico.height / 2
+                    }
+                    readonly property int bodyW: Math.round(bat.glyphSize * 1.25)
+                    readonly property int bodyH: Math.round(bat.glyphSize * 0.68)
+                    readonly property int nubW: 2
+
+                    // same line height as the volume icon glyph
+                    TextMetrics {
+                        id: refGlyph
+                        text: "\uDB81\uDD7E"
+                        font.family: Theme.iconFont
+                        font.pixelSize: bat.glyphSize
+                    }
+
+                    implicitWidth: bodyW + nubW
+                    implicitHeight: Math.max(refGlyph.height, bodyH)
+
+                    // shell
+                    Rectangle {
+                        x: 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: ico.bodyW
+                        height: ico.bodyH
+                        radius: 2
+                        color: "transparent"
+                        border.width: 1
+                        border.color: Qt.alpha(bat.fg, 0.9)
+
+                        // level bar
+                        Rectangle {
+                            x: 2; y: 2
+                            height: parent.height - 4
+                            width: root.batPct > 0
+                                   ? Math.max(1, Math.round((parent.width - 4) * Math.min(100, root.batPct) / 100))
+                                   : 0
+                            radius: 1
+                            color: bat.fg
+                        }
+                    }
+
+                    // terminal nub
+                    Rectangle {
+                        x: ico.bodyW
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: ico.nubW
+                        height: Math.round(ico.bodyH * 0.4)
+                        radius: 1
+                        color: Qt.alpha(bat.fg, 0.9)
+                    }
+                }
+            }
         }
     }
+// Brightness: sun / star / level bar. Scroll adjusts the backlight.
+Component {
+    id: brightC
+    Mod {
+        id: br
+        readonly property string look: cfg.lightIcons
+        glyph: look === "star" ? "\u2726" : look === "bar" ? "" : "\uf185"
+        iconComp: look === "bar" ? brBar : null
+        glyphSize: look === "star" ? root.sz.icon - 4 : root.sz.icon - 2
+        xOffset: root.vertical ? -1 : 0
+        yOffset: look === "bar" ? 0 : root.iconYOffset
+        disabled: !root.hasBacklight
+        disabledReason: "No backlight detected"
+        tip: root.brightTip
+        primaryHint: "Quick actions"
+        secondaryHint: "Bar settings"
+        scrollHint: "Adjust brightness"
+        onPrimary: root.qa(["toggle"])
+        onSecondary: root.openSettings()
+        onScrolled: delta => root.brightWheel(delta)
 
+        Component {
+            id: brBar
+            MiniBar { level: root.hasBacklight ? root.brightness : 0; col: br.fg }
+        }
+    }
+}
+
+// Night light: moon / star / warmth bar. Left click toggles, scroll adjusts temperature.
+Component {
+    id: nightC
+    Mod {
+        id: ng
+        readonly property string look: cfg.lightIcons
+        glyph: look === "star" ? "\u2727" : look === "bar" ? "" : "\uf186"
+        iconComp: look === "bar" ? ngBar : null
+        glyphSize: look === "star" ? root.sz.icon - 4 : root.sz.icon - 2
+        xOffset: root.vertical ? -1 : 0
+        yOffset: look === "bar" ? 0 : root.iconYOffset
+        active: root.nightOn
+        tip: root.nightTip
+        primaryHint: root.nightOn ? "Turn night light off" : "Turn night light on"
+        secondaryHint: "Quick actions"
+        scrollHint: "Adjust temperature"
+        onPrimary: root.toggleNight()
+        onSecondary: root.qa(["toggle"])
+        onScrolled: delta => root.nightWheel(delta)
+
+        Component {
+            id: ngBar
+            MiniBar {
+                level: root.nightOn ? (6500 - root.nightTemp) / 4000 : 0
+                col: ng.fg
+            }
+        }
+    }
+}
     // ───────────────────────── The bar ─────────────────────────
     Variants {
         model: root.barLive
@@ -1443,27 +1994,52 @@ echo "$u $t"
             visible: root.barVisible
 
             // Drag & drop: (sx, sy) is the pointer position in window coordinates at release.
-            // The section is picked from where the pointer landed relative to the clock panel
-            // (before it → start, over it → center, after it → end); the position inside that
+            // Section: if the pointer landed on a visible panel, that panel's section wins.
+            // Otherwise the nearest of the five zones (start · midLeft · center · midRight · end)
+            // is used, so empty zones are still valid drop targets. The position inside the
             // section is the slot after the last visible module whose centre lies before the pointer.
             function dropModule(modId, sx, sy) {
                 const pt = frame.mapFromItem(null, sx, sy);
                 const pos = root.vertical ? pt.y : pt.x;
-                // The center zone is a band around the middle of the bar; it is at least
-                // 80px wide so an empty center section (clock moved away) is still a drop target.
-                const mid = (root.vertical ? frame.height : frame.width) / 2;
-                const half = Math.max((root.vertical ? clockPanel.height : clockPanel.width) / 2, 40);
-                const c0 = mid - half;
-                const c1 = mid + half;
-                const sec = pos < c0 ? "start" : pos > c1 ? "end" : "center";
-                const panel = sec === "start" ? startPanel : sec === "center" ? clockPanel : endPanel;
+                const panels = {
+                    start: startPanel, midLeft: midLeftPanel, center: clockPanel,
+                    midRight: midRightPanel, end: endPanel
+                };
+
+                let sec = null;
+                for (const k of root.sections) {
+                    const p = panels[k];
+                    if (!p.visible) continue;
+                    const a = root.vertical ? p.y : p.x;
+                    const b = a + (root.vertical ? p.height : p.width);
+                    if (pos >= a && pos <= b) { sec = k; break; }
+                }
+
+                if (sec === null) {
+                    const mid = frame.axisLen / 2;
+                    const targets = {
+                        start: startPanel.visible ? (frame.startBeg + frame.startEnd) / 2 : 0,
+                        midLeft: frame.midLeftC,
+                        center: mid,
+                        midRight: frame.midRightC,
+                        end: endPanel.visible ? (frame.endBeg + frame.endFin) / 2 : frame.axisLen
+                    };
+                    let best = Infinity;
+                    for (const k of root.sections) {
+                        const d = Math.abs(pos - targets[k]);
+                        if (d < best) { best = d; sec = k; }
+                    }
+                }
+
+                const panel = panels[sec];
                 const list = root.listOf(sec);
 
+                // Slots now sit one level deeper: panel lane → island → island lane → Slot
                 const slots = {};
-                const kids = panel.lane.children;
-                for (let j = 0; j < kids.length; j++) {
-                    const ch = kids[j];
-                    if (ch.isSlot === true) slots[ch.modelData] = ch;
+                for (const isl of panel.lane.children) {
+                    if (!isl.lane) continue;                       // skip the Repeater
+                    for (const ch of isl.lane.children)
+                        if (ch.isSlot === true) slots[ch.modelData] = ch;
                 }
 
                 let idx = 0;
@@ -1488,6 +2064,25 @@ echo "$u $t"
                     rightMargin: root.edgeMargin("right")
                 }
 
+                // ── Geometry along the bar axis (x on horizontal bars, y on vertical ones) ──
+                // The two middle zones sit centered in the gap between their neighbours:
+                //   midLeft  → between the end of the start panel and the start of the center panel
+                //   midRight → between the end of the center panel and the start of the end panel
+                // Hidden (empty) neighbours fall back to the bar's start / middle / end.
+                readonly property real axisLen: root.vertical ? height : width
+                readonly property real startBeg: root.vertical ? startPanel.y : startPanel.x
+                readonly property real startEnd: startPanel.visible
+                    ? (root.vertical ? startPanel.y + startPanel.height : startPanel.x + startPanel.width) : 0
+                readonly property real centerBeg: clockPanel.visible
+                    ? (root.vertical ? clockPanel.y : clockPanel.x) : axisLen / 2
+                readonly property real centerFin: clockPanel.visible
+                    ? (root.vertical ? clockPanel.y + clockPanel.height : clockPanel.x + clockPanel.width) : axisLen / 2
+                readonly property real endBeg: endPanel.visible
+                    ? (root.vertical ? endPanel.y : endPanel.x) : axisLen
+                readonly property real endFin: root.vertical ? endPanel.y + endPanel.height : endPanel.x + endPanel.width
+                readonly property real midLeftC: (startEnd + centerBeg) / 2
+                readonly property real midRightC: (centerFin + endBeg) / 2
+
                 Rectangle {
                     visible: root.joined
                     anchors.fill: parent
@@ -1497,6 +2092,7 @@ echo "$u $t"
                     border.color: root.borderColor
                 }
 
+                // 1 · start
                 Panel {
                     id: startPanel
                     model: root.startList
@@ -1506,6 +2102,19 @@ echo "$u $t"
                     onDropped: (modId, sx, sy) => bar.dropModule(modId, sx, sy)
                 }
 
+                // 2 · between start and center
+                Panel {
+                    id: midLeftPanel
+                    model: root.midLeftList
+                    clockComp: clockC
+                    x: root.vertical ? 0
+                                     : Math.max(0, Math.min(frame.axisLen - width, frame.midLeftC - width / 2))
+                    y: root.vertical ? Math.max(0, Math.min(frame.axisLen - height, frame.midLeftC - height / 2))
+                                     : 0
+                    onDropped: (modId, sx, sy) => bar.dropModule(modId, sx, sy)
+                }
+
+                // 3 · center (hosts the clock module; calendar / side panel is now SidePanel.qml)
                 Panel {
                     id: clockPanel
                     model: root.centerList
@@ -1515,10 +2124,6 @@ echo "$u $t"
                     anchors.top: root.vertical ? undefined : frame.top
                     anchors.left: root.vertical ? frame.left : undefined
                     onDropped: (modId, sx, sy) => bar.dropModule(modId, sx, sy)
-
-                    property bool calOpen: false
-                    property int monthOffset: 0
-                    property Item clockItem: null     // the live clock module (wherever it was placed)
 
                     // The clock is only needed while the module is enabled.
                     SystemClock {
@@ -1533,207 +2138,42 @@ echo "$u $t"
                             id: clockMod
 
                             // "calendar" | "quickactions" | "settings" | "barsettings" | "none"
-                            function hintFor(a) {
-                                return a === "calendar" ? (clockPanel.calOpen ? "Close calendar" : "Open calendar")
-                                                        : root.actionHint(a);
-                            }
+                            // "calendar" opens SidePanel (anchored next to this clock module)
                             function act(a) {
-                                if (a === "calendar") {
-                                    clockPanel.monthOffset = 0;
-                                    clockPanel.calOpen = !clockPanel.calOpen;
-                                } else {
-                                    root.doAction(a);
-                                }
+                                if (a === "calendar") root.openSidepanelAt(clockMod);
+                                else root.doAction(a);
                             }
 
                             bold: true
                             baseSize: root.sz.clock
-                            text: root.clockText(clk.date)
-                            vtext: root.clockVText(clk.date)
-                            active: clockPanel.calOpen
+                            yOffset: 1
+                            text: root.clockBarText(clk.date)
+                            vtext: root.clockBarVText(clk.date)
                             tip: Qt.formatDate(clk.date, "dddd, d MMMM yyyy")
-                            primaryHint: hintFor(cfg.clockPrimary)
-                            secondaryHint: hintFor(cfg.clockSecondary)
-                            tertiaryHint: hintFor(cfg.clockTertiary)
+                            primaryHint: root.actionHint(cfg.clockPrimary)
+                            secondaryHint: root.actionHint(cfg.clockSecondary)
+                            tertiaryHint: root.actionHint(cfg.clockTertiary)
                             noSecondary: secondaryHint === ""
                             onPrimary: act(cfg.clockPrimary)
                             onSecondary: act(cfg.clockSecondary)
                             onTertiary: act(cfg.clockTertiary)
-
-                            onVisibleChanged: if (!visible) clockPanel.calOpen = false   // clock hidden → close calendar
-                            Component.onCompleted: clockPanel.clockItem = clockMod
-                            Component.onDestruction: if (clockPanel.clockItem === clockMod) clockPanel.clockItem = null
-                        }
-                    }
-                    LazyLoader {
-                        active: clockPanel.calOpen && root.isOn("clock") && clockPanel.clockItem !== null
-
-                        PopupWindow {
-                            readonly property Item ci: clockPanel.clockItem
-                            readonly property point p: bar.contentItem.mapFromItem(ci, 0, 0)
-
-                            anchor.window: bar
-                            anchor.rect.x: root.vertical
-                                ? (cfg.position === "left" ? p.x + ci.width + 6
-                                                           : p.x - implicitWidth - 6)
-                                : p.x + (ci.width - implicitWidth) / 2
-                            anchor.rect.y: root.vertical
-                                ? p.y + (ci.height - implicitHeight) / 2
-                                : (cfg.position === "top" ? p.y + ci.height + 4
-                                                          : p.y - implicitHeight - 4)
-                            implicitWidth: calBox.gridW + 2 * calBox.pad
-                            implicitHeight: calCol.implicitHeight + 2 * calBox.pad
-                            color: "transparent"
-                            visible: true
-
-                            Rectangle {
-                                id: calBox
-                                anchors.fill: parent
-                                radius: cfg.calRadius
-                                color: root.bgColor
-                                border.width: cfg.border ? 1 : 0
-                                border.color: root.borderColor
-
-                                readonly property int firstDay: cfg.weekMonday ? 1 : 0
-                                readonly property int cellW: 36
-                                readonly property int cellH: 30
-                                readonly property int pad: 16
-                                readonly property int gridW: cellW * 7
-
-                                readonly property date now: clk.date
-                                readonly property date view: new Date(now.getFullYear(), now.getMonth() + clockPanel.monthOffset, 1)
-
-                                readonly property var cells: {
-                                    const first = (view.getDay() - firstDay + 7) % 7;
-                                    const y = view.getFullYear(), m = view.getMonth();
-                                    const ty = now.getFullYear(), tm = now.getMonth(), td = now.getDate();
-                                    return Array.from({ length: 42 }, (_, i) => {
-                                        const d = new Date(y, m, i - first + 1);
-                                        return {
-                                            n: d.getDate(),
-                                            inMonth: d.getMonth() === m,
-                                            today: d.getFullYear() === ty && d.getMonth() === tm && d.getDate() === td
-                                        };
-                                    });
-                                }
-
-                                WheelHandler {
-                                    onWheel: e => clockPanel.monthOffset += (e.angleDelta.y > 0 ? -1 : 1)
-                                }
-
-                                Column {
-                                    id: calCol
-                                    anchors.centerIn: parent
-                                    spacing: 12
-
-                                    Column {
-                                        spacing: 2
-                                        Text {
-                                            text: root.clockText(calBox.now)
-                                            color: Theme.text
-                                            font.family: Theme.iconFont
-                                            font.pixelSize: root.sz.calTime
-                                            font.bold: true
-                                        }
-                                        Text {
-                                            text: Qt.formatDate(calBox.now, "dddd, d MMMM yyyy")
-                                            color: Theme.textDim
-                                            font.family: Theme.iconFont
-                                            font.pixelSize: root.sz.calDate
-                                        }
-                                    }
-
-                                    Rule { width: calBox.gridW }
-
-                                    Item {
-                                        width: calBox.gridW
-                                        height: 26
-
-                                        Arrow {
-                                            anchors.left: parent.left
-                                            glyph: "\uDB80\uDD41"
-                                            onClicked: clockPanel.monthOffset -= 1
-                                        }
-
-                                        Item {
-                                            anchors.centerIn: parent
-                                            width: monthTitle.implicitWidth + 16
-                                            height: parent.height
-                                            Text {
-                                                id: monthTitle
-                                                anchors.centerIn: parent
-                                                text: Qt.formatDate(calBox.view, "MMMM yyyy")
-                                                color: titleMa.containsMouse ? Theme.accent : Theme.text
-                                                font.family: Theme.iconFont
-                                                font.pixelSize: root.sz.calMonth
-                                                font.bold: true
-                                            }
-                                            MouseArea {
-                                                id: titleMa
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: clockPanel.monthOffset = 0
-                                            }
-                                        }
-
-                                        Arrow {
-                                            anchors.right: parent.right
-                                            glyph: "\uDB80\uDD42"
-                                            onClicked: clockPanel.monthOffset += 1
-                                        }
-                                    }
-
-                                    Row {
-                                        Repeater {
-                                            model: 7
-                                            delegate: Text {
-                                                required property int index
-                                                width: calBox.cellW
-                                                horizontalAlignment: Text.AlignHCenter
-                                                text: Qt.locale().dayName((index + calBox.firstDay) % 7, Locale.ShortFormat)
-                                                color: Theme.textDim
-                                                font.family: Theme.iconFont
-                                                font.pixelSize: root.sz.calWeekday
-                                            }
-                                        }
-                                    }
-
-                                    Grid {
-                                        columns: 7
-                                        Repeater {
-                                            model: calBox.cells
-                                            delegate: Item {
-                                                required property var modelData
-                                                width: calBox.cellW
-                                                height: calBox.cellH
-
-                                                Rectangle {
-                                                    visible: parent.modelData.today
-                                                    anchors.fill: parent
-                                                    anchors.margins: 2
-                                                    radius: Theme.radius
-                                                    color: Qt.alpha(Theme.accent, 0.45)
-                                                    border.width: 1
-                                                    border.color: Theme.accent
-                                                }
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    text: parent.modelData.n
-                                                    color: parent.modelData.inMonth ? Theme.text : Theme.textFaint
-                                                    font.family: Theme.iconFont
-                                                    font.pixelSize: root.sz.calDay
-                                                    font.bold: parent.modelData.today
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                 }
 
+                // 4 · between center and end
+                Panel {
+                    id: midRightPanel
+                    model: root.midRightList
+                    clockComp: clockC
+                    x: root.vertical ? 0
+                                     : Math.max(0, Math.min(frame.axisLen - width, frame.midRightC - width / 2))
+                    y: root.vertical ? Math.max(0, Math.min(frame.axisLen - height, frame.midRightC - height / 2))
+                                     : 0
+                    onDropped: (modId, sx, sy) => bar.dropModule(modId, sx, sy)
+                }
+
+                // 5 · end
                 Panel {
                     id: endPanel
                     model: root.endList

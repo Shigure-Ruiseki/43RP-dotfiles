@@ -16,6 +16,7 @@ rofi
 polkit
 polkit-gnome
 qt6-wayland
+qt6-5compat
 
 # --------------------------------------------------
 # Display Manager
@@ -47,6 +48,8 @@ slurp
 gpu-screen-recorder
 imagemagick
 matugen
+tesseract
+tesseract-data-eng
 
 # --------------------------------------------------
 # Networking / Bluetooth
@@ -84,6 +87,7 @@ kitty
 zsh
 zsh-autosuggestions
 zsh-syntax-highlighting
+zsh-autocomplete
 starship
 eza
 
@@ -195,6 +199,7 @@ ttf-jetbrains-mono
 ttf-iosevka-nerd
 ttf-roboto-mono
 otf-font-awesome
+ttf-tabler-icons 
 
 # --------------------------------------------------
 # Scripting / Package / Application Utilities

@@ -23,6 +23,7 @@ local bar_key           = "SHIFT + W"
 local clipboard_key     = "V"
 local layout_key        = "X"
 local float_key         = "Space"
+local shot_key          = "PRINT"
 local record_key        = "SHIFT + R"
 local shot_area_key     = "SHIFT + S"
 local ocr_key           = "SHIFT + F12"
@@ -56,6 +57,7 @@ do
             if kb_layout        then layout_key        = kb_layout end
             if kb_float         then float_key         = kb_float end
             if kb_record        then record_key        = kb_record end
+            if kb_shot          then shot_key          = kb_shot end
             if kb_shot_area     then shot_area_key     = kb_shot_area end
             if kb_ocr           then ocr_key           = kb_ocr end
         end
@@ -119,6 +121,7 @@ clipboard_key     = normalize_key(clipboard_key)
 layout_key        = normalize_key(layout_key)
 float_key         = normalize_key(float_key)
 record_key        = normalize_key(record_key)
+shot_key          = normalize_key(shot_key)
 shot_area_key     = normalize_key(shot_area_key)
 ocr_key           = normalize_key(ocr_key)
 

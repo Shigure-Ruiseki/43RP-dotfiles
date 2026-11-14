@@ -440,14 +440,33 @@ Scope {
     }
     Process {
         id: brightCheck
-        command: ["brightnessctl", "-m"]
+        command: [
+            "sh", "-c",
+            "brightnessctl -m 2>/dev/null; " +
+            "ddcutil --bus 4 getvcp 10 --brief; " +
+            "ddcutil --bus 5 getvcp 10 --brief"
+        ]
         stdout: StdioCollector {
             onStreamFinished: {
-                const parts = text.trim().split(",")
-                if (parts.length >= 4) {
-                    const pct = parseInt(parts[3])
-                    if (!isNaN(pct)) root.brightness = pct / 100
+            var lines = text.trim().split("\n")
+
+            for (var line of lines) {
+                var parts = line.split(",")
+                if (parts.length >= 4 && parts[0].includes("backlight")) {
+                    var pct = parseInt(parts[3])
+                    if (!isNaN(pct))
+                        values.push(pct)
+                    continue
                 }
+
+                // ddcutil: lấy brightness hiện tại
+                var match = line.match(/(\d+)\s+(\d+)/)
+                if (match)
+                    values.push(Number(match[1]))
+            }
+
+            if (values.length > 0)
+                root.brightness = Math.min.apply(null, values) / 100
             }
         }
     }
@@ -484,7 +503,19 @@ Scope {
     Timer {
         id: brightApplyTimer
         interval: 60
-        onTriggered: Quickshell.execDetached({ command: ["brightnessctl", "set", Math.round(root.brightness * 100) + "%"] })
+        onTriggered: {
+            var pct = String(Math.round(root.brightness * 100))
+
+            Quickshell.execDetached({
+                command: [
+                    "sh", "-c",
+                    "brightnessctl set " + pct + "% 2>/dev/null; " +
+                    "ddcutil --bus 4 setvcp 10 " + pct + " & " +
+                    "ddcutil --bus 5 setvcp 10 " + pct + " & " +
+                    "wait"
+                ]
+            })
+        }
     }
     function setBrightness(pct) {
         brightness = Math.max(0.01, Math.min(1, pct / 100))
